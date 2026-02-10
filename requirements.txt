@@ -1,0 +1,8 @@
+PyQt6
+numpy
+scipy
+matplotlib
+sounddevice
+soundfile
+pydub
+audioop-lts

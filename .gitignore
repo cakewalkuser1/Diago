@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Database (generated at runtime)
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Audio recordings (user data, not source)
+audio recordings/
+
+# Generated reports
+diagnostic_report_*.txt
+
+# Test files
+test_*.py
