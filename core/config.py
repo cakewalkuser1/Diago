@@ -129,6 +129,8 @@ class AppSettings(BaseSettings):
     app_name: str = "Diago"
     app_version: str = "0.1.0"
     debug: bool = Field(default=False, alias="DIAGO_DEBUG")
+    # Comma-separated origins for CORS (e.g. "https://app.example.com"). Empty or not set = allow all (dev).
+    cors_origins: str = Field(default="", alias="CORS_ORIGINS")
 
     # Sub-configurations
     audio: AudioSettings = Field(default_factory=AudioSettings)

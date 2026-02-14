@@ -96,11 +96,19 @@ def get_vehicle_years() -> list[int]:
     return list(range(1996, current + 2))
 
 
+# NHTSA vehicle types (safe for URL path segment)
+_VALID_VEHICLE_TYPES = frozenset({"car", "truck", "multipurpose passenger vehicle", "bus", "trailer", "motorcycle", "low speed vehicle", "incomplete vehicle"})
+
+
 def get_makes_for_vehicle_type(vehicle_type: str = "car") -> list[dict[str, Any]]:
     """
     Get makes for a vehicle type (e.g. car, truck). Returns list of {MakeId, MakeName}.
     """
-    url = f"{VPIC_BASE}/vehicles/GetMakesForVehicleType/{vehicle_type}"
+    # Restrict to known types to avoid injecting into URL path
+    normalized = (vehicle_type or "car").strip().lower()
+    if normalized not in _VALID_VEHICLE_TYPES:
+        normalized = "car"
+    url = f"{VPIC_BASE}/vehicles/GetMakesForVehicleType/{normalized}"
     try:
         with httpx.Client(timeout=15.0) as client:
             r = client.get(url, params={"format": "json"})

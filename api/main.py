@@ -56,10 +56,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS (allow all origins for local sidecar; restrict in production)
+    # CORS: set CORS_ORIGINS in production (e.g. "https://app.example.com"); empty = allow all (dev/sidecar)
+    origins = [o.strip() for o in (settings.cors_origins or "").split(",") if o.strip()] or ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
