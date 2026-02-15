@@ -22,6 +22,8 @@ from core.models import (
     MatchResult,
     CodeDefinition,
     Fingerprint,
+    VehicleIntake,
+    FuelTrimIntake,
 )
 from core.feature_extraction import BehavioralContext, AudioFeatures
 
@@ -124,26 +126,19 @@ def run_diagnosis(
     context: Optional[BehavioralContext] = None,
     db_manager=None,
     progress_callback=None,
+    vehicle_intake: Optional[VehicleIntake] = None,
+    plain_english: bool = False,
+    fuel_trims: Optional[FuelTrimIntake] = None,
 ) -> DiagnosisResult:
     """
     Run the full diagnostic pipeline.
 
     Automatically routes to audio or text-only pipeline based on input.
-
-    Args:
-        audio: Optional audio data (None for text-only mode).
-        sr: Sample rate (ignored if audio is None).
-        codes: User-entered OBD-II trouble codes.
-        symptoms: Free-text symptom description.
-        context: Optional pre-built behavioral context.
-        db_manager: Database manager instance.
-        progress_callback: Optional callable(str) for progress updates.
-
-    Returns:
-        DiagnosisResult with all analysis data.
+    Builds structured DiagnosticIntake for the failure-pattern layer (master-tech).
     """
     from core.symptom_parser import parse_symptoms
     from core.diagnostic_engine import run_diagnostic_pipeline_auto
+    from core.diagnostic_intake import build_diagnostic_intake
 
     # Parse symptoms to extract context and class hints
     parsed = parse_symptoms(symptoms) if symptoms else None
@@ -157,6 +152,15 @@ def run_diagnosis(
 
     class_hints = parsed.class_hints if parsed else {}
     symptom_confidence = parsed.confidence if parsed else 0.0
+
+    # Structured intake for pattern layer (backward compatible: no vehicle required)
+    diagnostic_intake = build_diagnostic_intake(
+        symptoms_text=symptoms or "",
+        codes=codes or [],
+        context=context,
+        vehicle_intake=vehicle_intake,
+        fuel_trims=fuel_trims,
+    )
 
     settings = get_settings()
 
@@ -177,7 +181,28 @@ def run_diagnosis(
         symptom_confidence=symptom_confidence,
         llm_enabled=settings.llm.llm_enabled,
         progress_callback=progress_callback,
+        plain_english=plain_english,
     )
+
+    # Attach structured intake for pattern engine and API (Phase 2)
+    result.diagnostic_intake = diagnostic_intake
+
+    # Rank failure modes from pattern layer (master-tech)
+    if db_manager and getattr(result, "diagnostic_intake", None):
+        from core.failure_pattern_engine import score_failure_modes
+        failure_modes = db_manager.get_failure_modes()
+        result.ranked_failure_modes = score_failure_modes(
+            result.diagnostic_intake,
+            failure_modes,
+        )
+
+    # Optional: extend LLM narrative with failure-mode explanation (Phase 4)
+    if getattr(result, "ranked_failure_modes", None):
+        try:
+            from core.llm_reasoning import enhance_narrative_with_failure_modes
+            enhance_narrative_with_failure_modes(result, plain_english=plain_english)
+        except Exception as e:
+            logger.warning("Failure-mode narrative enhancement failed: %s", e)
 
     logger.info(
         "Diagnosis complete: top_class=%s, confidence=%s, ambiguous=%s",

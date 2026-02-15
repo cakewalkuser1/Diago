@@ -1,0 +1,40 @@
+# Diago backend with Ollama for DiagBot chat
+# User App → Diago API → Ollama (all hosted by you)
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: diago-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    # CPU only. For GPU: add deploy.resources.reservations.devices
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  api:
+    build: .
+    container_name: diago-api
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.1
+      - OLLAMA_AUTO_START=false
+      - DIAGO_DB_PATH=/app/data/auto_audio.db
+    volumes:
+      - diago_data:/app/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  diago_data:

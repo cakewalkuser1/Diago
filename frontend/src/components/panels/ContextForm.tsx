@@ -1,7 +1,9 @@
+import { Gauge } from "lucide-react";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useAppStore } from "@/stores/appStore";
+import { usePersona } from "@/contexts/PersonaContext";
 
 const NOISE_OPTIONS = [
   { value: "unknown", label: "Unknown" },
@@ -59,6 +61,10 @@ const MAINTENANCE_OPTIONS = [
 export function ContextForm() {
   const context = useAppStore((s) => s.context);
   const setContext = useAppStore((s) => s.setContext);
+  const fuelTrims = useAppStore((s) => s.fuelTrims);
+  const setFuelTrims = useAppStore((s) => s.setFuelTrims);
+  const { personaTier, showTechnicalData } = usePersona();
+  const showFuelTrims = personaTier === "diy" && showTechnicalData;
 
   return (
     <SectionCard
@@ -127,6 +133,49 @@ export function ContextForm() {
           onChange={(e) => setContext({ perceived_frequency: e.target.value })}
         />
       </div>
+
+      {/* Fuel trims (DIYer + Show Technical Data) */}
+      {showFuelTrims && (
+        <div className="space-y-2 p-3 rounded-lg bg-mantle/50 border border-surface1">
+          <p className="text-xs font-medium text-text flex items-center gap-2">
+            <Gauge size={14} className="text-secondary" />
+            Fuel trims (optional)
+          </p>
+          <p className="text-[11px] text-subtext">
+            Short-term fuel trim adjusts quickly; long-term learns over time. High values can mean air leak or weak fuel delivery.
+          </p>
+          <div className="flex gap-4">
+            <div>
+              <label className="text-[11px] text-overlay0">STFT %</label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="—"
+                value={fuelTrims.stft ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFuelTrims({ stft: v === "" ? null : parseFloat(v) });
+                }}
+                className="w-20 bg-surface0 text-text border border-surface1 rounded px-2 py-1 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-overlay0">LTFT %</label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="—"
+                value={fuelTrims.ltft ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFuelTrims({ ltft: v === "" ? null : parseFloat(v) });
+                }}
+                className="w-20 bg-surface0 text-text border border-surface1 rounded px-2 py-1 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Row 3: Vehicle info */}
       <div className="flex flex-wrap gap-4">

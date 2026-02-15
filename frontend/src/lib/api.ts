@@ -6,6 +6,8 @@
 import type {
   BehavioralContext,
   DiagnosisResponse,
+  RankedFailureMode,
+  SubscriptionStatus,
   AudioInfo,
   SpectrogramData,
   Session,
@@ -18,20 +20,39 @@ import type {
   VehicleYearsResult,
   VehicleMakesResult,
   VehicleModelsResult,
-  TSBItem,
+  SelectedVehicle,
   TSBSearchResult,
 } from "@/types";
 import { getApiBase } from "@/lib/env";
 
 const BASE = `${getApiBase()}/api/v1`;
 
+/** Error with status for paywall (429) handling */
+export class ApiError extends Error {
+  status: number;
+  body: string;
+  constructor(message: string, status: number, body: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`API ${res.status}: ${body}`);
+    throw new ApiError(`API ${res.status}: ${body}`, res.status, body);
   }
   return res.json() as Promise<T>;
+}
+
+function headersWithAuth(contentType: string | undefined, accessToken: string | null): HeadersInit {
+  const h: Record<string, string> = {};
+  if (contentType) h["Content-Type"] = contentType;
+  if (accessToken) h["Authorization"] = `Bearer ${accessToken}`;
+  return h;
 }
 
 /* ─── Health ─── */
@@ -40,14 +61,19 @@ export async function healthCheck() {
 }
 
 /* ─── Diagnosis ─── */
-export async function diagnoseText(payload: {
-  symptoms: string;
-  codes: string[];
-  context: BehavioralContext;
-}): Promise<DiagnosisResponse> {
+export async function diagnoseText(
+  payload: {
+    symptoms: string;
+    codes: string[];
+    context: BehavioralContext;
+    plain_english?: boolean;
+    fuel_trims?: { stft?: number | null; ltft?: number | null };
+  },
+  accessToken?: string | null
+): Promise<DiagnosisResponse> {
   return request<DiagnosisResponse>(`${BASE}/diagnosis/text`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: headersWithAuth("application/json", accessToken ?? null),
     body: JSON.stringify(payload),
   });
 }
@@ -55,16 +81,35 @@ export async function diagnoseText(payload: {
 export async function diagnoseAudio(
   file: File | Blob,
   symptoms = "",
-  codes = ""
+  codes = "",
+  plainEnglish = false,
+  accessToken?: string | null
 ): Promise<DiagnosisResponse> {
   const form = new FormData();
   form.append("audio_file", file);
   form.append("symptoms", symptoms);
   form.append("codes", codes);
+  form.append("plain_english", String(plainEnglish));
   return request<DiagnosisResponse>(`${BASE}/diagnosis/audio`, {
     method: "POST",
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
     body: form,
   });
+}
+
+export async function confirmTest(payload: {
+  ranked_failure_modes: RankedFailureMode[];
+  test_id: string;
+  result: "pass" | "fail";
+}): Promise<{ ranked_failure_modes: RankedFailureMode[] }> {
+  return request<{ ranked_failure_modes: RankedFailureMode[] }>(
+    `${BASE}/diagnosis/confirm`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
 }
 
 /* ─── Audio ─── */
@@ -93,6 +138,52 @@ export async function getSpectrogram(
 /* ─── Sessions ─── */
 export async function listSessions(limit = 50): Promise<Session[]> {
   return request<Session[]>(`${BASE}/sessions/?limit=${limit}`);
+}
+
+/* ─── Repairs (Enterprise) ─── */
+export interface RepairLog {
+  id: number;
+  session_id: number | null;
+  vin: string | null;
+  repair_description: string;
+  parts_used: string;
+  outcome: string;
+  created_at: string;
+}
+
+export async function createRepair(payload: {
+  session_id?: number | null;
+  vin?: string | null;
+  repair_description: string;
+  parts_used?: string;
+  outcome?: string;
+}): Promise<{ id: number }> {
+  return request<{ id: number }>(`${BASE}/repairs/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listRepairs(params?: {
+  vin?: string;
+  session_id?: number;
+  limit?: number;
+}): Promise<RepairLog[]> {
+  const search = new URLSearchParams();
+  if (params?.vin) search.set("vin", params.vin);
+  if (params?.session_id != null) search.set("session_id", String(params.session_id));
+  if (params?.limit != null) search.set("limit", String(params.limit));
+  const qs = search.toString();
+  return request<RepairLog[]>(`${BASE}/repairs/${qs ? `?${qs}` : ""}`);
+}
+
+/* ─── Analytics (Enterprise) ─── */
+export async function getAnalytics(): Promise<{
+  total_diagnoses: number;
+  total_repair_logs: number;
+}> {
+  return request(`${BASE}/analytics/`);
 }
 
 export async function getSessionMatches(
@@ -210,6 +301,23 @@ export async function getVehicleModels(
   );
 }
 
+export async function getSelectedVehicle(): Promise<SelectedVehicle> {
+  return request<SelectedVehicle>(`${BASE}/vehicle/selected`);
+}
+
+export async function saveSelectedVehicle(payload: {
+  model_year: number | null;
+  make: string;
+  model: string;
+  submodel: string;
+}): Promise<SelectedVehicle> {
+  return request<SelectedVehicle>(`${BASE}/vehicle/selected`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 /* ─── TSBs ─── */
 export async function searchTsbs(params: {
   model_year?: number;
@@ -229,4 +337,63 @@ export async function searchTsbs(params: {
 
 export async function getTsbCount(): Promise<{ count: number }> {
   return request<{ count: number }>(`${BASE}/tsbs/count`);
+}
+
+/* ─── Payments (subscription, requires auth) ─── */
+export async function getSubscriptionStatus(
+  accessToken: string
+): Promise<SubscriptionStatus> {
+  return request<SubscriptionStatus>(`${BASE}/payments/subscription`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function createCheckout(
+  payload: { tier: "pro" | "premium"; success_url: string; cancel_url: string },
+  accessToken: string
+): Promise<{ checkout_url: string }> {
+  return request<{ checkout_url: string }>(`${BASE}/payments/checkout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelSubscription(accessToken: string): Promise<{ message: string }> {
+  return request<{ message: string }>(`${BASE}/payments/cancel`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+/* ─── Chat (Ollama — local, no credits) ─── */
+export interface ChatMessagePayload {
+  role: string;
+  content: string;
+}
+
+export interface ChatContextPayload {
+  symptoms?: string;
+  vehicle?: string;
+  trouble_codes?: string[];
+  diagnosis_summary?: string;
+}
+
+export interface ChatResponsePayload {
+  content: string;
+  error?: string;
+}
+
+export async function postChat(
+  messages: ChatMessagePayload[],
+  context?: ChatContextPayload
+): Promise<ChatResponsePayload> {
+  return request<ChatResponsePayload>(`${BASE}/chat/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, context }),
+  });
 }

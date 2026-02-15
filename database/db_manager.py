@@ -87,8 +87,14 @@ class DatabaseManager:
         """Create tables and seed data if needed."""
         logger.info("Initializing database at %s", self.db_path)
         self._create_tables()
+        self._ensure_selected_vehicle_table()
+        self._ensure_failure_modes_table()
+        self._ensure_diagnosis_usage_table()
+        self._ensure_stripe_subscription_user_table()
+        self._run_enterprise_migrations()
         self._seed_if_empty()
         self._seed_trouble_codes_if_empty()
+        self._seed_failure_modes_if_empty()
         logger.info("Database initialization complete")
 
     def _create_tables(self):
@@ -141,6 +147,238 @@ class DatabaseManager:
             """)
 
         self.connection.commit()
+
+    def _ensure_selected_vehicle_table(self):
+        """Ensure selected_vehicle table exists (for new and existing DBs)."""
+        self.connection.execute("""
+            CREATE TABLE IF NOT EXISTS selected_vehicle (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                model_year INTEGER,
+                make TEXT,
+                model TEXT,
+                submodel TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        self.connection.commit()
+
+    def get_selected_vehicle(self) -> dict | None:
+        """Return the stored selected vehicle (year, make, model, submodel) or None."""
+        cursor = self.connection.execute(
+            "SELECT model_year, make, model, submodel FROM selected_vehicle WHERE id = 1"
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        year = row["model_year"]
+        if year is None and row["make"] is None and row["model"] is None:
+            return None
+        return {
+            "model_year": year,
+            "make": (row["make"] or "").strip(),
+            "model": (row["model"] or "").strip(),
+            "submodel": (row["submodel"] or "").strip(),
+        }
+
+    def set_selected_vehicle(
+        self,
+        model_year: int | None,
+        make: str,
+        model: str,
+        submodel: str = "",
+    ) -> None:
+        """Store the selected vehicle (single row id=1)."""
+        make = (make or "").strip()
+        model = (model or "").strip()
+        submodel = (submodel or "").strip()
+        self.connection.execute(
+            """INSERT OR REPLACE INTO selected_vehicle (id, model_year, make, model, submodel, updated_at)
+               VALUES (1, ?, ?, ?, ?, datetime('now'))""",
+            (model_year, make, model, submodel),
+        )
+        self.connection.commit()
+
+    def _run_enterprise_migrations(self):
+        """Run enterprise migrations (repair_logs, etc.)."""
+        migrations_path = Path(__file__).parent / "migrations_enterprise.sql"
+        if migrations_path.exists():
+            with open(migrations_path, "r") as f:
+                sql = f.read()
+            self.connection.executescript(sql)
+            self.connection.commit()
+            logger.debug("Enterprise migrations applied")
+
+    def _ensure_failure_modes_table(self):
+        """Ensure failure_modes table exists (for new and existing DBs)."""
+        self.connection.execute("""
+            CREATE TABLE IF NOT EXISTS failure_modes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                failure_id TEXT NOT NULL UNIQUE,
+                display_name TEXT NOT NULL,
+                description TEXT,
+                mechanical_class TEXT,
+                required_conditions TEXT NOT NULL,
+                supporting_conditions TEXT,
+                disqualifiers TEXT,
+                weight REAL NOT NULL DEFAULT 0.8,
+                confirm_tests TEXT,
+                vehicle_scope TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        self.connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_failure_modes_class ON failure_modes(mechanical_class)"
+        )
+        self.connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_failure_modes_scope ON failure_modes(vehicle_scope)"
+        )
+        self.connection.commit()
+
+    def _ensure_diagnosis_usage_table(self):
+        """Ensure diagnosis_usage table exists (for rate limit persistence)."""
+        self.connection.execute("""
+            CREATE TABLE IF NOT EXISTS diagnosis_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usage_key TEXT NOT NULL,
+                month TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(usage_key, month)
+            )
+        """)
+        self.connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_diagnosis_usage_key_month ON diagnosis_usage(usage_key, month)"
+        )
+        self.connection.commit()
+
+    def get_diagnosis_usage(self, usage_key: str, month: str) -> int:
+        """Return current diagnosis count for the given key and month."""
+        cursor = self.connection.execute(
+            "SELECT count FROM diagnosis_usage WHERE usage_key = ? AND month = ?",
+            (usage_key, month),
+        )
+        row = cursor.fetchone()
+        return int(row["count"]) if row else 0
+
+    def increment_diagnosis_usage(self, usage_key: str, month: str) -> int:
+        """Increment diagnosis count for key/month; return new count."""
+        self.connection.execute(
+            """
+            INSERT INTO diagnosis_usage (usage_key, month, count) VALUES (?, ?, 1)
+            ON CONFLICT(usage_key, month) DO UPDATE SET count = count + 1
+            """,
+            (usage_key, month),
+        )
+        self.connection.commit()
+        return self.get_diagnosis_usage(usage_key, month)
+
+    def _ensure_stripe_subscription_user_table(self):
+        """Ensure stripe_subscription_user table exists (webhook tier sync)."""
+        self.connection.execute("""
+            CREATE TABLE IF NOT EXISTS stripe_subscription_user (
+                stripe_subscription_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL
+            )
+        """)
+        self.connection.commit()
+
+    def save_stripe_subscription_user(self, stripe_subscription_id: str, user_id: str) -> None:
+        """Store mapping from Stripe subscription id to user id."""
+        self.connection.execute(
+            """
+            INSERT OR REPLACE INTO stripe_subscription_user (stripe_subscription_id, user_id)
+            VALUES (?, ?)
+            """,
+            (stripe_subscription_id, user_id),
+        )
+        self.connection.commit()
+
+    def get_user_id_by_subscription_id(self, stripe_subscription_id: str) -> str | None:
+        """Return user_id for a Stripe subscription id, or None."""
+        cursor = self.connection.execute(
+            "SELECT user_id FROM stripe_subscription_user WHERE stripe_subscription_id = ?",
+            (stripe_subscription_id,),
+        )
+        row = cursor.fetchone()
+        return row["user_id"] if row else None
+
+    def get_subscription_id_by_user_id(self, user_id: str) -> str | None:
+        """Return Stripe subscription id for a user (most recent row), or None."""
+        cursor = self.connection.execute(
+            "SELECT stripe_subscription_id FROM stripe_subscription_user WHERE user_id = ? LIMIT 1",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        return row["stripe_subscription_id"] if row else None
+
+    def delete_stripe_subscription_user(self, stripe_subscription_id: str) -> None:
+        """Remove mapping after subscription ends."""
+        self.connection.execute(
+            "DELETE FROM stripe_subscription_user WHERE stripe_subscription_id = ?",
+            (stripe_subscription_id,),
+        )
+        self.connection.commit()
+
+    def _seed_failure_modes_if_empty(self):
+        """Seed failure_modes if the table is empty."""
+        try:
+            cursor = self.connection.execute("SELECT COUNT(*) FROM failure_modes")
+            count = cursor.fetchone()[0]
+        except sqlite3.OperationalError:
+            return
+        if count > 0:
+            return
+        import json
+        from database.seed_failure_modes import get_seed_failure_modes
+        for fm in get_seed_failure_modes():
+            self.connection.execute(
+                """INSERT INTO failure_modes
+                   (failure_id, display_name, description, mechanical_class,
+                    required_conditions, supporting_conditions, disqualifiers,
+                    weight, confirm_tests, vehicle_scope)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    fm["failure_id"],
+                    fm["display_name"],
+                    fm.get("description") or "",
+                    fm.get("mechanical_class") or "",
+                    json.dumps(fm.get("required_conditions") or []),
+                    json.dumps(fm.get("supporting_conditions") or []),
+                    json.dumps(fm.get("disqualifiers") or []),
+                    fm.get("weight", 0.8),
+                    json.dumps(fm.get("confirm_tests") or []),
+                    fm.get("vehicle_scope"),
+                ),
+            )
+        self.connection.commit()
+
+    def get_failure_modes(self) -> list[dict]:
+        """Return all failure modes as list of dicts (for pattern engine)."""
+        try:
+            cursor = self.connection.execute(
+                """SELECT failure_id, display_name, description, mechanical_class,
+                          required_conditions, supporting_conditions, disqualifiers,
+                          weight, confirm_tests, vehicle_scope
+                   FROM failure_modes"""
+            )
+            rows = cursor.fetchall()
+        except sqlite3.OperationalError:
+            return []
+        import json
+        out = []
+        for row in rows:
+            out.append({
+                "failure_id": row["failure_id"],
+                "display_name": row["display_name"],
+                "description": row["description"] or "",
+                "mechanical_class": row["mechanical_class"] or "",
+                "required_conditions": json.loads(row["required_conditions"] or "[]"),
+                "supporting_conditions": json.loads(row["supporting_conditions"] or "[]"),
+                "disqualifiers": json.loads(row["disqualifiers"] or "[]"),
+                "weight": row["weight"],
+                "confirm_tests": json.loads(row["confirm_tests"] or "[]"),
+                "vehicle_scope": row["vehicle_scope"],
+            })
+        return out
 
     def _seed_if_empty(self):
         """Seed with known fault signatures if the table is empty."""
@@ -430,6 +668,58 @@ class DatabaseManager:
             "DELETE FROM analysis_sessions WHERE id = ?", (session_id,)
         )
         self.connection.commit()
+
+    # ---- Repair Logs (Enterprise) ----
+
+    def create_repair_log(
+        self,
+        session_id: int | None,
+        vin: str | None,
+        repair_description: str,
+        parts_used: str = "",
+        outcome: str = "",
+    ) -> int:
+        """Create a repair log entry. Returns the log ID."""
+        cursor = self.connection.execute(
+            """INSERT INTO repair_logs (session_id, vin, repair_description, parts_used, outcome)
+               VALUES (?, ?, ?, ?, ?)""",
+            (session_id, (vin or "").strip() or None, repair_description, parts_used, outcome),
+        )
+        self.connection.commit()
+        return cursor.lastrowid
+
+    def list_repair_logs(
+        self,
+        vin: str | None = None,
+        session_id: int | None = None,
+        limit: int = 50,
+    ) -> list[dict]:
+        """List repair logs, optionally filtered by VIN or session_id."""
+        query = "SELECT id, session_id, vin, repair_description, parts_used, outcome, created_at FROM repair_logs WHERE 1=1"
+        params: list = []
+        if vin:
+            query += " AND vin = ?"
+            params.append(vin.strip())
+        if session_id is not None:
+            query += " AND session_id = ?"
+            params.append(session_id)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        cursor = self.connection.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_analytics(self) -> dict:
+        """Return shop analytics: diagnoses count, repair logs count, recent activity."""
+        diagnoses = self.connection.execute(
+            "SELECT COUNT(*) FROM analysis_sessions"
+        ).fetchone()[0]
+        repairs = self.connection.execute(
+            "SELECT COUNT(*) FROM repair_logs"
+        ).fetchone()[0]
+        return {
+            "total_diagnoses": diagnoses,
+            "total_repair_logs": repairs,
+        }
 
     # ---- Signature Management ----
 

@@ -5,7 +5,7 @@ Consolidates models that were previously scattered across modules.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +62,44 @@ class CodeDefinition:
 
 
 # ---------------------------------------------------------------------------
+# Diagnostic intake (structured input for pattern matching)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class VehicleIntake:
+    """Vehicle identification for diagnostic intake."""
+    year: int | None = None
+    make: str = ""
+    model: str = ""
+    engine: str = ""  # e.g. "2.5L 2AR-FE"
+
+
+@dataclass
+class FuelTrimIntake:
+    """Fuel trim data (STFT/LTFT); per-bank later if needed."""
+    stft: float | None = None  # short-term fuel trim %
+    ltft: float | None = None  # long-term fuel trim %
+
+
+@dataclass
+class EnvironmentIntake:
+    """Environment/operating conditions derived from BehavioralContext."""
+    cold_start: bool = False
+    at_idle: bool = False
+    under_load: bool = False
+
+
+@dataclass
+class DiagnosticIntake:
+    """Canonical structured input for the diagnostic pattern layer."""
+    vehicle: VehicleIntake = field(default_factory=VehicleIntake)
+    symptoms: list[str] = field(default_factory=list)  # normalized symptom keys/phrases
+    dtcs: list[str] = field(default_factory=list)
+    fuel_trims: FuelTrimIntake = field(default_factory=FuelTrimIntake)
+    environment: EnvironmentIntake = field(default_factory=EnvironmentIntake)
+
+
+# ---------------------------------------------------------------------------
 # Diagnostic models (originally in core/diagnostic_engine.py)
 # ---------------------------------------------------------------------------
 
@@ -78,6 +116,8 @@ class DiagnosisResult:
     fingerprint_matches: list[MatchResult]   # From DB matching
     fingerprint_count: int                   # Number of fingerprints
     llm_narrative: str | None = None         # Optional LLM explanation
+    diagnostic_intake: Optional["DiagnosticIntake"] = None  # Structured intake for pattern layer
+    ranked_failure_modes: list[Any] = field(default_factory=list)  # list[FailureModeMatch] from pattern engine
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,10 @@
 import { Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { PersonaProvider } from "@/contexts/PersonaContext";
 import { HomePage } from "@/pages/HomePage";
 import { DiagnoseView } from "@/pages/DiagnoseView";
+import { PricingPage } from "@/pages/PricingPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,10 +15,13 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Routes>
+      <PersonaProvider>
+        <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/diagnose" element={<DiagnoseView />} />
-      </Routes>
+        <Route path="/pricing" element={<PricingPage />} />
+        </Routes>
+      </PersonaProvider>
     </QueryClientProvider>
   );
 }

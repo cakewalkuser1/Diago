@@ -1,0 +1,14 @@
+# Diago API - minimal deps for Docker (no GUI, no llama-cpp)
+numpy
+scipy
+soundfile
+pydub
+audioop-lts
+pydantic-settings
+python-dotenv
+fastapi[standard]
+python-multipart
+httpx
+PyJWT
+cryptography
+stripe

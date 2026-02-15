@@ -167,7 +167,7 @@ export function RecordPanel() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="audio/*,.wav,.mp3,.flac,.ogg,.webm"
+          accept="audio/*,.wav,.mp3,.mp4,.m4a,.flac,.ogg,.webm"
           className="hidden"
           onChange={handleFileChange}
         />

@@ -16,15 +16,16 @@ from api.middleware.auth import AuthenticatedUser, UserTier, get_optional_user
 logger = logging.getLogger(__name__)
 
 # ─── Rate Limit Configuration ───
+# Product: diagnoses per calendar month per tier.
+# Stripe price IDs: DIAGO_STRIPE_PRO_PRICE_ID, DIAGO_STRIPE_PREMIUM_PRICE_ID (core/config).
 
-# Diagnoses per month by tier
 TIER_LIMITS = {
     UserTier.FREE: 3,
-    UserTier.PRO: 1000,       # effectively unlimited
+    UserTier.PRO: 500,        # high cap
     UserTier.PREMIUM: 10000,  # effectively unlimited
 }
 
-# In-memory counters: { user_id: { month_key: count } }
+# In-memory fallback when DB not available (e.g. tests)
 _counters: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
 
 
@@ -32,6 +33,27 @@ def _month_key() -> str:
     """Current month key for rate limiting."""
     t = time.gmtime()
     return f"{t.tm_year}-{t.tm_mon:02d}"
+
+
+def _get_used(key: str, month: str) -> int:
+    """Get current usage count; prefer DB, fallback to in-memory."""
+    try:
+        from api.deps import get_db_manager
+        db = get_db_manager()
+        return db.get_diagnosis_usage(key, month)
+    except Exception:
+        return _counters[key][month]
+
+
+def _increment_used(key: str, month: str) -> None:
+    """Increment usage; prefer DB, then keep in-memory in sync."""
+    try:
+        from api.deps import get_db_manager
+        db = get_db_manager()
+        db.increment_diagnosis_usage(key, month)
+        _counters[key][month] = db.get_diagnosis_usage(key, month)
+    except Exception:
+        _counters[key][month] += 1
 
 
 def check_diagnosis_rate_limit(
@@ -48,7 +70,7 @@ def check_diagnosis_rate_limit(
     key = user.user_id if user else f"anon:{client_ip}"
     month = _month_key()
 
-    current = _counters[key][month]
+    current = _get_used(key, month)
     if current >= limit:
         raise HTTPException(
             status_code=429,
@@ -63,7 +85,7 @@ def increment_diagnosis_count(
     """Increment the diagnosis counter after a successful diagnosis."""
     key = user.user_id if user else f"anon:{client_ip}"
     month = _month_key()
-    _counters[key][month] += 1
+    _increment_used(key, month)
 
 
 def get_remaining_diagnoses(
@@ -75,7 +97,7 @@ def get_remaining_diagnoses(
     limit = TIER_LIMITS[tier]
     key = user.user_id if user else f"anon:{client_ip}"
     month = _month_key()
-    used = _counters[key][month]
+    used = _get_used(key, month)
 
     return {
         "tier": tier.value,

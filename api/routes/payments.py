@@ -88,9 +88,22 @@ async def cancel_user_subscription(
     user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Cancel the current user's subscription at end of billing period."""
-    # In production, look up the Stripe customer/subscription ID from Supabase
-    # For now, return a placeholder
-    return {"message": "Subscription cancellation requires Supabase integration"}
+    from api.deps import get_db_manager
+    from api.payments.stripe_service import cancel_subscription
+
+    db = get_db_manager()
+    subscription_id = db.get_subscription_id_by_user_id(user.user_id)
+    if not subscription_id:
+        raise HTTPException(
+            status_code=404,
+            detail="No active subscription found for this account.",
+        )
+    try:
+        cancel_subscription(subscription_id)
+        return {"message": "Subscription will cancel at the end of the billing period."}
+    except Exception as e:
+        logger.error("Cancel subscription failed: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to cancel subscription")
 
 
 @router.post("/webhook")
@@ -115,7 +128,32 @@ async def stripe_webhook(request: Request):
         action = result.get("action")
         logger.info("Webhook processed: action=%s", action)
 
-        # User tier updates are intended to be handled by Supabase (e.g. Edge Function
-        # or webhook) that syncs Stripe subscription state to app_metadata / users table.
+        if action == "activate_subscription":
+            user_id = result.get("user_id")
+            tier = result.get("tier")
+            subscription_id = result.get("subscription_id")
+            if user_id and tier:
+                from api.supabase_admin import update_user_tier
+                update_user_tier(user_id, tier)
+            if subscription_id and user_id:
+                try:
+                    from api.deps import get_db_manager
+                    get_db_manager().save_stripe_subscription_user(subscription_id, user_id)
+                except Exception as e:
+                    logger.warning("Could not save subscription mapping: %s", e)
+
+        elif action == "deactivate_subscription":
+            subscription_id = result.get("subscription_id")
+            if subscription_id:
+                try:
+                    from api.deps import get_db_manager
+                    from api.supabase_admin import update_user_tier
+                    db = get_db_manager()
+                    user_id = db.get_user_id_by_subscription_id(subscription_id)
+                    if user_id:
+                        update_user_tier(user_id, "free")
+                        db.delete_stripe_subscription_user(subscription_id)
+                except Exception as e:
+                    logger.warning("Could not sync tier on cancel: %s", e)
 
     return {"received": True}

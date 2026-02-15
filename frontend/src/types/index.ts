@@ -15,6 +15,12 @@ export interface BehavioralContext {
   recent_maintenance: string;
 }
 
+/** Optional fuel trim data (STFT/LTFT %) for DIYer/Pro users. */
+export interface FuelTrimInput {
+  stft: number | null;
+  ltft: number | null;
+}
+
 export const DEFAULT_CONTEXT: BehavioralContext = {
   rpm_dependency: false,
   speed_dependency: false,
@@ -39,6 +45,22 @@ export interface ClassScore {
   penalty: number;
 }
 
+export interface ConfirmTest {
+  test: string;
+  tool: string;
+  expected: string;
+}
+
+export interface RankedFailureMode {
+  failure_id: string;
+  display_name: string;
+  description: string;
+  score: number;
+  confirm_tests: ConfirmTest[];
+  matched_conditions: string[];
+  ruled_out_disqualifiers: string[];
+}
+
 export interface DiagnosisResponse {
   top_class: string;
   top_class_display: string;
@@ -48,6 +70,14 @@ export interface DiagnosisResponse {
   fingerprint_count: number;
   llm_narrative: string | null;
   report_text: string;
+  ranked_failure_modes?: RankedFailureMode[];
+}
+
+export interface SubscriptionStatus {
+  tier: string;
+  limit: number;
+  used: number;
+  remaining: number;
 }
 
 /* ─── Audio ─── */
@@ -179,6 +209,14 @@ export interface VehicleMakesResult {
 
 export interface VehicleModelsResult {
   models: ModelItem[];
+}
+
+/** Stored selected vehicle (from API/DB) for tailored diagnosis. */
+export interface SelectedVehicle {
+  model_year: number | null;
+  make: string;
+  model: string;
+  submodel: string;
 }
 
 /* ─── TSBs ─── */

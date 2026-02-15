@@ -2,7 +2,7 @@ import { type ButtonHTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 type Variant = "default" | "primary" | "danger" | "ghost" | "green" | "red";
-type Size = "sm" | "md" | "lg";
+type Size = "sm" | "md" | "lg" | "xl";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -28,6 +28,7 @@ const sizeStyles: Record<Size, string> = {
   sm: "px-2.5 py-1 text-xs rounded-lg",
   md: "px-4 py-2 text-sm rounded-lg",
   lg: "px-6 py-2.5 text-base rounded-lg",
+  xl: "px-8 py-4 text-lg rounded-xl",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

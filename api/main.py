@@ -4,6 +4,7 @@ Central API for the web UI (primary). Also used as a local sidecar for Tauri
 desktop and can be deployed for cloud/mobile.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -13,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.config import get_settings
 from database.db_manager import DatabaseManager
 from api.deps import set_db_manager, clear_db_manager
+from api.ollama_startup import ensure_ollama_running
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,9 @@ async def lifespan(app: FastAPI):
     db.initialize()
     set_db_manager(db)
     logger.info("Database initialized at %s", settings.db_path)
+
+    # Start Ollama in background if not running (so DiagBot works without user setup)
+    asyncio.create_task(ensure_ollama_running())
 
     yield
 
@@ -75,6 +80,9 @@ def create_app() -> FastAPI:
     from api.routes.payments import router as payments_router
     from api.routes.vehicle import router as vehicle_router
     from api.routes.tsb import router as tsb_router
+    from api.routes.chat import router as chat_router
+    from api.routes.repairs import router as repairs_router
+    from api.routes.analytics import router as analytics_router
 
     # Register route modules
     app.include_router(diagnosis_router, prefix="/api/v1/diagnosis", tags=["Diagnosis"])
@@ -85,6 +93,9 @@ def create_app() -> FastAPI:
     app.include_router(payments_router, prefix="/api/v1/payments", tags=["Payments"])
     app.include_router(vehicle_router, prefix="/api/v1/vehicle", tags=["Vehicle"])
     app.include_router(tsb_router, prefix="/api/v1/tsbs", tags=["TSBs"])
+    app.include_router(chat_router, prefix="/api/v1/chat", tags=["Chat"])
+    app.include_router(repairs_router, prefix="/api/v1/repairs", tags=["Repairs"])
+    app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["Analytics"])
 
     @app.get("/health")
     async def health_check():

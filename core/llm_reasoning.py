@@ -43,6 +43,7 @@ def build_structured_prompt(
     features: dict,
     penalties: dict[str, float],
     top_n: int = 3,
+    plain_english: bool = False,
 ) -> dict:
     """
     Build a structured prompt for the LLM with guardrails.
@@ -92,6 +93,14 @@ def build_structured_prompt(
             "If penalties were applied to a class, explain what physics rule was violated.",
             "Provide practical next-step recommendations for the vehicle owner.",
             "Output valid JSON with keys: explanation, top_diagnosis, recommendations, confidence_note.",
+            *(
+                [
+                    "Write for a non-technical driver. Use plain English only—no jargon.",
+                    "Example: instead of 'Lean condition bank 1' say 'Engine may be getting too much air or not enough fuel.'",
+                ]
+                if plain_english
+                else []
+            ),
         ],
     }
 
@@ -141,6 +150,7 @@ def run_llm_reasoning(
     class_scores: dict[str, float],
     features: AudioFeatures,
     penalties: dict[str, float],
+    plain_english: bool = False,
 ) -> str | None:
     """
     Run LLM reasoning if enabled.
@@ -161,6 +171,7 @@ def run_llm_reasoning(
         class_scores,
         features.to_dict() if hasattr(features, "to_dict") else features,
         penalties,
+        plain_english=plain_english,
     )
     prompt_text = format_prompt_as_text(prompt_data)
 
@@ -325,3 +336,93 @@ def generate_fallback_narrative(
             )
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Failure-mode-aware narrative (master-tech)
+# ---------------------------------------------------------------------------
+
+def build_failure_modes_prompt_section(ranked_failure_modes: list[Any], top_n: int = 3) -> str:
+    """
+    Build a prompt section describing top failure modes for the LLM.
+    Used so the narrative can explain why (conditions matched), what was
+    eliminated (disqualifiers), and what to test next.
+    """
+    lines = [
+        "",
+        "=== RANKED FAILURE MODES (pattern layer) ===",
+    ]
+    for i, fm in enumerate(ranked_failure_modes[:top_n], 1):
+        if getattr(fm, "score", 0) <= 0:
+            continue
+        lines.append(f"{i}. {getattr(fm, 'display_name', 'Unknown')} (score: {getattr(fm, 'score', 0):.2f})")
+        lines.append(f"   Description: {getattr(fm, 'description', '') or 'N/A'}")
+        matched = getattr(fm, "matched_conditions", []) or []
+        if matched:
+            lines.append(f"   Matched conditions: {', '.join(matched)}")
+        ruled = getattr(fm, "ruled_out_disqualifiers", []) or []
+        if ruled:
+            lines.append(f"   Ruled out (disqualifiers): {', '.join(ruled)}")
+        tests = getattr(fm, "confirm_tests", []) or []
+        if tests:
+            lines.append("   Confirm tests:")
+            for t in tests:
+                if isinstance(t, dict):
+                    lines.append(f"     - {t.get('test', '')}: {t.get('tool', '')} — {t.get('expected', '')}")
+                else:
+                    lines.append(f"     - {t}")
+    lines.extend([
+        "",
+        "Using the above failure modes, extend the diagnostic narrative to:",
+        "(1) Explain WHY the top cause(s) are likely (which conditions matched).",
+        "(2) Mention what was ruled out (disqualifiers) if any.",
+        "(3) Recommend what confirm tests to perform next.",
+        "Keep the response concise and actionable.",
+    ])
+    return "\n".join(lines)
+
+
+def enhance_narrative_with_failure_modes(result: Any, plain_english: bool = False) -> None:
+    """
+    If LLM is enabled and result has ranked_failure_modes, call the LLM to
+    extend the narrative with failure-mode explanation (why, ruled out, test next).
+    Updates result.llm_narrative in place.
+    """
+    from core.config import get_settings
+    settings = get_settings().llm
+    if not settings.llm_enabled or settings.llm_provider is None:
+        return
+    ranked = getattr(result, "ranked_failure_modes", None) or []
+    top_with_score = [fm for fm in ranked if getattr(fm, "score", 0) > 0][:3]
+    if not top_with_score:
+        return
+
+    section = build_failure_modes_prompt_section(top_with_score, top_n=3)
+    existing = getattr(result, "llm_narrative", None) or ""
+    plain_extra = (
+        " Write for a non-technical driver. Use plain English only—no jargon. "
+        "Example: instead of 'Lean condition bank 1' say 'Engine may be getting too much air or not enough fuel.'"
+    ) if plain_english else ""
+    prompt = (
+        "You are an automotive diagnostic assistant. Below is the current diagnostic narrative "
+        "and the ranked failure modes from a pattern-matching layer. Extend the narrative to "
+        "explain why the top cause(s) are likely (which conditions matched), what was ruled out "
+        "(disqualifiers), and what confirm tests to perform next. Be concise and actionable."
+        f"{plain_extra}\n\n"
+        "=== CURRENT NARRATIVE ===\n"
+        f"{existing or '(None)'}\n"
+        f"{section}"
+    )
+    try:
+        if settings.llm_provider == "openai":
+            narrative = _call_openai(prompt)
+        elif settings.llm_provider == "anthropic":
+            narrative = _call_anthropic(prompt)
+        elif settings.llm_provider == "ollama":
+            narrative = _call_ollama(prompt)
+        else:
+            return
+        if narrative and narrative.strip():
+            result.llm_narrative = narrative.strip()
+    except Exception as e:
+        logger.warning("Failure-mode narrative enhancement failed: %s", e)

@@ -7,8 +7,10 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+
 from pydantic import BaseModel, Field
 
+from api.deps import get_db_manager
 from api.services import nhtsa as nhtsa_service
 
 logger = logging.getLogger(__name__)
@@ -77,6 +79,14 @@ class MakesResponse(BaseModel):
 class ModelsResponse(BaseModel):
     """List of models for make + year."""
     models: list[ModelItem]
+
+
+class SelectedVehicleResponse(BaseModel):
+    """Stored selected vehicle (for tailored diagnosis)."""
+    model_year: int | None = None
+    make: str = ""
+    model: str = ""
+    submodel: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -170,3 +180,36 @@ async def get_models(
     """Return models for a make and year from NHTSA vPIC."""
     raw = nhtsa_service.get_models_for_make_id_year(make_id, model_year)
     return ModelsResponse(models=[ModelItem(**m) for m in raw])
+
+
+@router.get("/selected", response_model=SelectedVehicleResponse)
+async def get_selected_vehicle():
+    """Return the stored selected vehicle (year, make, model, submodel) for tailored diagnosis."""
+    db = get_db_manager()
+    row = db.get_selected_vehicle()
+    if row is None:
+        return SelectedVehicleResponse()
+    return SelectedVehicleResponse(
+        model_year=row.get("model_year"),
+        make=row.get("make") or "",
+        model=row.get("model") or "",
+        submodel=row.get("submodel") or "",
+    )
+
+
+@router.put("/selected", response_model=SelectedVehicleResponse)
+async def set_selected_vehicle(payload: SelectedVehicleResponse):
+    """Store the selected vehicle so diagnosis, recalls, and TSBs are tailored to it."""
+    db = get_db_manager()
+    db.set_selected_vehicle(
+        model_year=payload.model_year,
+        make=payload.make or "",
+        model=payload.model or "",
+        submodel=payload.submodel or "",
+    )
+    return SelectedVehicleResponse(
+        model_year=payload.model_year,
+        make=payload.make or "",
+        model=payload.model or "",
+        submodel=payload.submodel or "",
+    )

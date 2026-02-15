@@ -134,15 +134,17 @@ def process_webhook_event(payload: bytes, sig_header: str) -> dict:
         user_id = data.get("metadata", {}).get("user_id")
         tier = data.get("metadata", {}).get("tier")
         customer_id = data.get("customer")
+        subscription_id = data.get("subscription")  # Stripe subscription id
         logger.info(
-            "Checkout completed: user=%s tier=%s customer=%s",
-            user_id, tier, customer_id,
+            "Checkout completed: user=%s tier=%s customer=%s sub=%s",
+            user_id, tier, customer_id, subscription_id,
         )
         result.update({
             "handled": True,
             "user_id": user_id,
             "tier": tier,
             "customer_id": customer_id,
+            "subscription_id": subscription_id,
             "action": "activate_subscription",
         })
 

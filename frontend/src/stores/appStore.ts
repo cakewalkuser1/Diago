@@ -39,6 +39,9 @@ interface AppState {
   /* Vehicle (year/make/model/trim for start diagnosis) */
   vehicleSelection: VehicleSelection;
 
+  /* Fuel trims (optional, for DIYer) */
+  fuelTrims: { stft: number | null; ltft: number | null };
+
   /* Actions */
   setAudioBlob: (blob: Blob | null, fileName?: string) => void;
   setIsRecording: (v: boolean) => void;
@@ -58,6 +61,7 @@ interface AppState {
   setActiveTab: (t: "symptoms" | "results" | "chat") => void;
   setSidebarOpen: (v: boolean) => void;
   setVehicleSelection: (v: Partial<VehicleSelection> | null) => void;
+  setFuelTrims: (v: Partial<{ stft: number | null; ltft: number | null }>) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -89,6 +93,8 @@ export const useAppStore = create<AppState>((set) => ({
     modelName: "",
     trim: "",
   },
+
+  fuelTrims: { stft: null, ltft: null },
 
   /* Actions */
   setAudioBlob: (blob, fileName) =>
@@ -142,5 +148,9 @@ export const useAppStore = create<AppState>((set) => ({
               trim: "",
             }
           : { ...state.vehicleSelection, ...v },
+    })),
+  setFuelTrims: (v) =>
+    set((state) => ({
+      fuelTrims: { ...state.fuelTrims, ...v },
     })),
 }));

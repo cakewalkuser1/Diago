@@ -374,6 +374,8 @@ class DiagnosisResult:
     fingerprint_matches: list[MatchResult]   # From DB matching
     fingerprint_count: int                   # Number of fingerprints
     llm_narrative: str | None = None         # Optional LLM explanation
+    diagnostic_intake: Any = None            # Structured intake (set by core.api.run_diagnosis)
+    ranked_failure_modes: Any = None        # list[FailureModeMatch] from pattern engine
 
 
 # ---------------------------------------------------------------------------
@@ -617,6 +619,7 @@ def run_diagnostic_pipeline(
     db_manager: DatabaseManager,
     llm_enabled: bool = False,
     progress_callback=None,
+    plain_english: bool = False,
 ) -> DiagnosisResult:
     """
     Run the complete diagnostic pipeline.
@@ -707,7 +710,7 @@ def run_diagnostic_pipeline(
         try:
             from core.llm_reasoning import run_llm_reasoning
             llm_narrative = run_llm_reasoning(
-                normalized_scores, features, penalties
+                normalized_scores, features, penalties, plain_english=plain_english
             )
         except Exception as e:
             logger.warning("LLM reasoning failed in audio pipeline: %s", e)
@@ -1032,6 +1035,7 @@ def run_text_diagnostic_pipeline(
     symptom_confidence: float = 0.0,
     llm_enabled: bool = False,
     progress_callback=None,
+    plain_english: bool = False,
 ) -> DiagnosisResult:
     """
     Run the diagnostic pipeline using ONLY text-based inputs (no audio).
@@ -1150,7 +1154,7 @@ def run_text_diagnostic_pipeline(
         try:
             from core.llm_reasoning import run_llm_reasoning
             llm_narrative = run_llm_reasoning(
-                normalized_scores, features, penalties
+                normalized_scores, features, penalties, plain_english=plain_english
             )
         except Exception as e:
             logger.warning("LLM reasoning failed in text pipeline: %s", e)
@@ -1187,6 +1191,7 @@ def run_diagnostic_pipeline_auto(
     symptom_confidence: float = 0.0,
     llm_enabled: bool = False,
     progress_callback=None,
+    plain_english: bool = False,
 ) -> DiagnosisResult:
     """
     Automatically route to the audio or text-only pipeline based on input.
@@ -1212,6 +1217,7 @@ def run_diagnostic_pipeline_auto(
             db_manager=db_manager,
             llm_enabled=llm_enabled,
             progress_callback=progress_callback,
+            plain_english=plain_english,
         )
 
         # Enrich audio result with class hint boosts if available
@@ -1255,4 +1261,5 @@ def run_diagnostic_pipeline_auto(
             symptom_confidence=symptom_confidence,
             llm_enabled=llm_enabled,
             progress_callback=progress_callback,
+            plain_english=plain_english,
         )

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Bot, User, Sparkles, Tag } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAppStore } from "@/stores/appStore";
+import { postChat } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const QUICK_ACTIONS = [
@@ -12,10 +13,16 @@ const QUICK_ACTIONS = [
   "What's an estimated repair cost?",
 ];
 
+const MAX_HISTORY = 50;
+
 export function ChatPanel() {
   const {
     chatMessages,
     chatMode,
+    symptoms,
+    activeCodes,
+    vehicleSelection,
+    diagnosis,
     addChatMessage,
     setChatMode,
   } = useAppStore();
@@ -38,18 +45,50 @@ export function ChatPanel() {
       setInput("");
       setIsTyping(true);
 
-      // Simulate agent response (will be replaced with real API call)
-      setTimeout(() => {
+      try {
+        const messages = chatMessages
+          .concat([{ role: "user" as const, content: text.trim(), id: "", timestamp: new Date() }])
+          .slice(-MAX_HISTORY)
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        const vehicleLabel = [
+          vehicleSelection.year,
+          vehicleSelection.makeName,
+          vehicleSelection.modelName,
+          vehicleSelection.trim,
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        const context = {
+          symptoms: symptoms || undefined,
+          vehicle: vehicleLabel || undefined,
+          trouble_codes: activeCodes.length ? activeCodes : undefined,
+          diagnosis_summary: diagnosis
+            ? `${diagnosis.top_class_display} (${diagnosis.confidence} confidence)`
+            : undefined,
+        };
+
+        const res = await postChat(messages, context);
+        addChatMessage("assistant", res.content || "No response.");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Request failed";
         addChatMessage(
           "assistant",
-          "I'm the DiagBot assistant. The API integration for chat is coming soon. " +
-            "In the meantime, you can run a diagnosis using the Analyze button " +
-            "and I'll be able to provide insights based on the results."
+          `Couldn’t reach DiagBot: ${msg}. If this is your first time, the chat model may still be downloading. Try again in a moment.`
         );
+      } finally {
         setIsTyping(false);
-      }, 1500);
+      }
     },
-    [addChatMessage]
+    [
+      addChatMessage,
+      chatMessages,
+      symptoms,
+      activeCodes,
+      vehicleSelection,
+      diagnosis,
+    ]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -68,7 +107,7 @@ export function ChatPanel() {
           <div>
             <span className="text-sm font-semibold text-text">DiagBot</span>
             <span className="text-[10px] text-overlay0 ml-2">
-              ASE Certified Mechanic
+              Local · No credits
             </span>
           </div>
         </div>

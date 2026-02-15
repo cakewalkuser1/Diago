@@ -1,16 +1,21 @@
 import { cn } from "@/lib/utils";
 
+type DensityVariant = "relaxed" | "compact";
+
 interface SectionCardProps {
   title?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  variant?: DensityVariant;
 }
 
-export function SectionCard({ title, children, className }: SectionCardProps) {
+export function SectionCard({ title, children, className, variant = "relaxed" }: SectionCardProps) {
   return (
     <section
       className={cn(
-        "rounded-xl border border-surface1 bg-surface0/50 p-4",
+        "rounded-[10px] border border-surface1 card-shadow",
+        variant === "relaxed" && "bg-surface0/80 p-5",
+        variant === "compact" && "bg-surface0/60 p-3",
         className
       )}
     >

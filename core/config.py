@@ -75,9 +75,11 @@ class LLMSettings(BaseSettings):
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     anthropic_model: str = Field(default="claude-sonnet-4-20250514", alias="ANTHROPIC_MODEL")
 
-    # Ollama
+    # Ollama (DiagBot chat: hosted by backend, users do not run locally)
+    # OLLAMA_URL: point to your Ollama service (e.g. http://ollama:11434 in Docker)
     ollama_model: str = Field(default="llama3.1", alias="OLLAMA_MODEL")
     ollama_url: str = Field(default="http://localhost:11434", alias="OLLAMA_URL")
+    ollama_auto_start: bool = Field(default=False, alias="OLLAMA_AUTO_START")
 
 
 class AgentSettings(BaseSettings):
@@ -143,6 +145,7 @@ class AppSettings(BaseSettings):
     supabase_url: str = Field(default="", alias="SUPABASE_URL")
     supabase_anon_key: str = Field(default="", alias="SUPABASE_ANON_KEY")
     supabase_jwt_secret: str = Field(default="", alias="SUPABASE_JWT_SECRET")
+    supabase_service_role_key: str = Field(default="", alias="SUPABASE_SERVICE_ROLE_KEY")
 
     # Stripe
     stripe_secret_key: str = Field(default="", alias="STRIPE_SECRET_KEY")

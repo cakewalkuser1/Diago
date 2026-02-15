@@ -1,0 +1,131 @@
+"""
+Seed data for failure_modes table (master-tech pattern layer).
+Each entry: failure_id, display_name, description, mechanical_class,
+required_conditions, supporting_conditions, disqualifiers, weight, confirm_tests, vehicle_scope.
+"""
+
+def get_seed_failure_modes():
+    """Return list of failure mode dicts for initial seed."""
+    return [
+        {
+            "failure_id": "VACUUM_LEAK_BOTH_BANKS",
+            "display_name": "Vacuum / intake leak (both banks)",
+            "description": "Unmetered air entering intake; both banks lean at idle.",
+            "mechanical_class": "structural_resonance",
+            "required_conditions": ["P0171", "P0174"],
+            "supporting_conditions": ["lean_trim_above_15", "at_idle", "hissing_noise"],
+            "disqualifiers": ["lean_under_load_only", "one_bank_lean_only"],
+            "weight": 0.85,
+            "confirm_tests": [
+                {"test": "smoke_test_intake", "tool": "Smoke machine", "expected": "Smoke escapes at leak point"},
+                {"test": "spray_carb_cleaner", "tool": "Carb cleaner", "expected": "RPM change at leak"},
+            ],
+            "vehicle_scope": None,
+        },
+        {
+            "failure_id": "HEAD_GASKET_CYL1_COLD",
+            "display_name": "Head gasket seepage (cylinder 1, cold start)",
+            "description": "Coolant entering cylinder 1 at cold start; misfire and coolant loss.",
+            "mechanical_class": "combustion_impulse",
+            "required_conditions": ["P0301", "cold_start_misfire", "coolant_loss"],
+            "supporting_conditions": ["rough_cold_start", "lean_trim_above_15"],
+            "disqualifiers": ["no_coolant_loss", "misfire_all_cylinders", "misfire_hot_only"],
+            "weight": 0.82,
+            "confirm_tests": [
+                {"test": "overnight_pressure_test", "tool": "Cooling system pressure tester", "expected": "Pressure drop overnight"},
+                {"test": "leakdown_test", "tool": "Cylinder leakdown tester", "expected": "Air in coolant"},
+                {"test": "combustion_gas_test", "tool": "Combustion leak test kit", "expected": "Hydrocarbons in coolant"},
+            ],
+            "vehicle_scope": None,
+        },
+        {
+            "failure_id": "INJECTOR_LEAK_SINGLE",
+            "display_name": "Fuel injector leak (single cylinder)",
+            "description": "Injector dripping; rich at idle, possible single-cylinder misfire.",
+            "mechanical_class": "combustion_impulse",
+            "required_conditions": ["rich_at_idle"],
+            "supporting_conditions": ["P0300", "P0172", "occurs_at_idle"],
+            "disqualifiers": ["lean_at_idle", "normal_trim_cruise"],
+            "weight": 0.75,
+            "confirm_tests": [
+                {"test": "fuel_pressure_hold", "tool": "Fuel pressure gauge", "expected": "Pressure drops with engine off"},
+                {"test": "injector_balance_test", "tool": "Scan tool / scope", "expected": "One injector pattern off"},
+            ],
+            "vehicle_scope": None,
+        },
+        {
+            "failure_id": "IGNITION_COIL_SINGLE",
+            "display_name": "Ignition coil failure (single cylinder)",
+            "description": "One coil weak or dead; single-cylinder misfire, often P030x.",
+            "mechanical_class": "combustion_impulse",
+            "required_conditions": ["single_cylinder_misfire"],
+            "supporting_conditions": ["P0301", "P0302", "P0303", "P0304", "misfire_under_load", "cold_start_misfire"],
+            "disqualifiers": ["misfire_all_cylinders", "coolant_loss"],
+            "weight": 0.78,
+            "confirm_tests": [
+                {"test": "swap_coil", "tool": "None", "expected": "Misfire moves with coil"},
+                {"test": "secondary_scope", "tool": "Lab scope", "expected": "Weak or no spark on one cylinder"},
+            ],
+            "vehicle_scope": None,
+        },
+        {
+            "failure_id": "MAF_CONTAMINATION",
+            "display_name": "MAF sensor contamination or fault",
+            "description": "Dirty or faulty MAF; fuel trim and driveability issues.",
+            "mechanical_class": "combustion_impulse",
+            "required_conditions": ["P0171", "P0174"],
+            "supporting_conditions": ["lean_trim_above_15", "under_load", "poor_driveability"],
+            "disqualifiers": ["vacuum_leak_confirmed"],
+            "weight": 0.7,
+            "confirm_tests": [
+                {"test": "maf_reading_scan", "tool": "Scan tool", "expected": "MAF g/s out of range"},
+                {"test": "clean_maf_retest", "tool": "MAF cleaner", "expected": "Trims improve after clean"},
+            ],
+            "vehicle_scope": None,
+        },
+        {
+            "failure_id": "BELT_TENSIONER_COLD",
+            "display_name": "Serpentine belt / tensioner (cold squeal)",
+            "description": "Belt or tensioner noise, often worse when cold.",
+            "mechanical_class": "belt_drive_friction",
+            "required_conditions": ["squeal_cold", "belt_noise"],
+            "supporting_conditions": ["cold_start", "rpm_dependent"],
+            "disqualifiers": ["noise_constant_hot"],
+            "weight": 0.8,
+            "confirm_tests": [
+                {"test": "belt_inspection", "tool": "Visual", "expected": "Cracks, glaze, or tensioner play"},
+                {"test": "water_spray_test", "tool": "Water bottle", "expected": "Noise changes with water on belt"},
+            ],
+            "vehicle_scope": None,
+        },
+        {
+            "failure_id": "WHEEL_BEARING",
+            "display_name": "Wheel bearing wear",
+            "description": "Wheel bearing rumble or growl; speed and turn dependent.",
+            "mechanical_class": "rolling_element_bearing",
+            "required_conditions": ["bearing_noise", "speed_dependent"],
+            "supporting_conditions": ["turn_dependent", "rpm_independent"],
+            "disqualifiers": ["engine_bay_only", "idle_noise"],
+            "weight": 0.82,
+            "confirm_tests": [
+                {"test": "jack_and_spin", "tool": "Jack", "expected": "Rumble or play at wheel"},
+                {"test": "stethoscope_wheel", "tool": "Mechanic stethoscope", "expected": "Noise loud at hub"},
+            ],
+            "vehicle_scope": None,
+        },
+        {
+            "failure_id": "PURGE_VALVE_STUCK",
+            "display_name": "Evap purge valve stuck open",
+            "description": "Purge valve leaking; lean at idle, possible P0442/P0455.",
+            "mechanical_class": "combustion_impulse",
+            "required_conditions": ["P0442", "P0455", "P0171"],
+            "supporting_conditions": ["lean_trim_above_15", "at_idle"],
+            "disqualifiers": ["no_evap_codes"],
+            "weight": 0.78,
+            "confirm_tests": [
+                {"test": "purge_valve_click", "tool": "Scan tool", "expected": "Valve does not click when commanded"},
+                {"test": "smoke_evap", "tool": "Smoke machine", "expected": "Smoke from purge valve"},
+            ],
+            "vehicle_scope": None,
+        },
+    ]

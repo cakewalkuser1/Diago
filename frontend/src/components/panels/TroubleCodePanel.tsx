@@ -8,7 +8,12 @@ import { codeColor } from "@/lib/utils";
 
 const CODE_REGEX = /^[PBCU]\d{4}$/i;
 
-export function TroubleCodePanel() {
+interface TroubleCodePanelProps {
+  /** When true, only show the trouble codes section (no symptom textarea). */
+  codesOnly?: boolean;
+}
+
+export function TroubleCodePanel({ codesOnly }: TroubleCodePanelProps) {
   const {
     symptoms,
     activeCodes,
@@ -52,23 +57,24 @@ export function TroubleCodePanel() {
       title={
         <span className="flex items-center gap-2">
           <span className="w-1 h-4 bg-primary rounded-full" />
-          Symptoms & Trouble Codes
+          {codesOnly ? "Trouble Codes (OBD-II)" : "Symptoms & Trouble Codes"}
         </span>
       }
     >
       <div className="space-y-4">
-      {/* Symptom text */}
-      <div className="space-y-2">
-        <p className="text-xs font-medium text-overlay0 uppercase tracking-wide">
-          Symptoms
-        </p>
-        <textarea
-          value={symptoms}
-          onChange={(e) => setSymptoms(e.target.value)}
-          placeholder="Describe the issue... e.g. 'High-pitched whine that increases with RPM, noticed after oil change'"
-          className="w-full h-24 bg-surface0 text-text border border-surface1 rounded-lg px-3 py-2 text-sm resize-none placeholder:text-overlay0 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors"
-        />
-      </div>
+      {!codesOnly && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-overlay0 uppercase tracking-wide">
+            Symptoms
+          </p>
+          <textarea
+            value={symptoms}
+            onChange={(e) => setSymptoms(e.target.value)}
+            placeholder="Describe the issue... e.g. 'High-pitched whine that increases with RPM, noticed after oil change'"
+            className="w-full h-24 bg-surface0 text-text border border-surface1 rounded-lg px-3 py-2 text-sm resize-none placeholder:text-overlay0 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors"
+          />
+        </div>
+      )}
 
       {/* Trouble codes */}
       <div className="space-y-2">

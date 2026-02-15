@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, Mic, Car, History } from "lucide-react";
+import { Activity, Car, History } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { Header } from "@/components/layout/Header";
 import { StatusBar } from "@/components/layout/StatusBar";
-import { listSessions, getVehicleYears, getVehicleMakes, getVehicleModels } from "@/lib/api";
+import { PersonaSelector } from "@/components/onboarding/PersonaSelector";
+import { usePersona } from "@/contexts/PersonaContext";
+import { listSessions, getVehicleYears, getVehicleMakes, getVehicleModels, saveSelectedVehicle } from "@/lib/api";
 import { formatTimestamp, formatDuration } from "@/lib/utils";
 import { useAppStore } from "@/stores/appStore";
 import type { Session } from "@/types";
@@ -18,6 +20,7 @@ const MODEL_PLACEHOLDER = "Model";
 
 export function HomePage() {
   const navigate = useNavigate();
+  const { hasSelectedPersona } = usePersona();
   const setVehicleSelection = useAppStore((s) => s.setVehicleSelection);
   const [year, setYear] = useState<string>("");
   const [makeId, setMakeId] = useState<string>("");
@@ -67,17 +70,56 @@ export function HomePage() {
   const selectedMake = makeOptions.find((o) => o.value === makeId);
   const selectedModel = modelOptions.find((o) => o.value === modelId);
 
-  const onStartDiagnosis = () => {
+  const onStartDiagnosis = async () => {
+    const makeName = selectedMake?.label ?? "";
+    const modelName = selectedModel?.label ?? "";
+    const trimVal = trim.trim();
+    const yearNum = year ? Number(year) : null;
     setVehicleSelection({
-      year: year ? Number(year) : null,
+      year: yearNum,
       makeId: makeId ? Number(makeId) : null,
-      makeName: selectedMake?.label ?? "",
+      makeName,
       modelId: modelId ? Number(modelId) : null,
-      modelName: selectedModel?.label ?? "",
-      trim: trim.trim(),
+      modelName,
+      trim: trimVal,
     });
+    if (makeName || modelName) {
+      try {
+        await saveSelectedVehicle({
+          model_year: yearNum ?? null,
+          make: makeName,
+          model: modelName,
+          submodel: trimVal,
+        });
+      } catch {
+        // non-blocking; store is already updated
+      }
+    }
     navigate("/diagnose");
   };
+
+  if (!hasSelectedPersona) {
+    return (
+      <div className="h-full flex flex-col min-h-0">
+        <Header />
+        <main className="flex-1 overflow-y-auto flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-2xl space-y-8">
+            <section className="text-center space-y-3">
+              <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-primary/10 mb-2">
+                <Activity size={40} className="text-primary" />
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-text">Diago</h1>
+              <p className="text-subtext text-sm sm:text-base">
+                Physics-aware automotive diagnostics
+              </p>
+            </section>
+            <PersonaSelector />
+          </div>
+        </main>
+        <StatusBar />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -148,8 +190,7 @@ export function HomePage() {
               className="w-full"
               onClick={onStartDiagnosis}
             >
-              <Mic size={18} />
-              Start diagnosis
+              Next
             </Button>
             <Button
               variant="default"

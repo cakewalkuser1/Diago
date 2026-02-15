@@ -41,13 +41,14 @@ class AudioInfoResponse(BaseModel):
 
 @router.post("/info", response_model=AudioInfoResponse)
 async def get_audio_info(audio_file: UploadFile = File(...)):
-    """Get basic information about an uploaded audio file."""
+    """Get basic information about an uploaded audio file (WAV, MP3, MP4, FLAC, OGG, WEBM)."""
     try:
-        import soundfile as sf
+        from core.audio_io import load_audio_bytes
         audio_bytes = await audio_file.read()
-        audio_data, sr = sf.read(io.BytesIO(audio_bytes), dtype="float32")
-        if audio_data.ndim > 1:
-            audio_data = np.mean(audio_data, axis=1)
+        filename = getattr(audio_file, "filename", None) or "audio"
+        audio_data, sr = load_audio_bytes(audio_bytes, filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid audio file: {e}")
 
@@ -66,17 +67,18 @@ async def generate_spectrogram(
     mode: str = "power",
 ):
     """
-    Generate a spectrogram image from an uploaded audio file.
+    Generate a spectrogram image from an uploaded audio file (WAV, MP3, MP4, FLAC, OGG, WEBM).
 
     Modes: "stft", "mel", "power"
     Returns base64-encoded PNG.
     """
     try:
-        import soundfile as sf
+        from core.audio_io import load_audio_bytes
         audio_bytes = await audio_file.read()
-        audio_data, sr = sf.read(io.BytesIO(audio_bytes), dtype="float32")
-        if audio_data.ndim > 1:
-            audio_data = np.mean(audio_data, axis=1)
+        filename = getattr(audio_file, "filename", None) or "audio"
+        audio_data, sr = load_audio_bytes(audio_bytes, filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid audio file: {e}")
 
