@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Truck, MapPin, Loader2, Wrench } from "lucide-react";
+import { StarRating } from "@/components/ui/StarRating";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 import { dispatchRunDirect, dispatchContinue, geocodeAddress } from "@/lib/api";
@@ -410,8 +411,15 @@ export function FindMechanicView() {
                         : "bg-mantle border-surface1 hover:border-surface2"
                     }`}
                   >
-                    <span className="font-medium">{m.name}</span>
-                    <span className="text-xs text-overlay0">{m.distance_mi} mi away</span>
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">{m.name}</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-overlay0">{m.distance_mi} mi away</span>
+                        {"rating" in m && m.rating != null && Number(m.rating) > 0 && (
+                          <StarRating rating={Number(m.rating)} size={12} />
+                        )}
+                      </div>
+                    </div>
                   </button>
                 </li>
               ))}
@@ -431,10 +439,16 @@ export function FindMechanicView() {
         ) : showWaiting ? (
           <div className="rounded-lg p-4 border border-surface1 bg-surface0">
             <p className="text-sm text-subtext">{dispatchResponse.prompt_for_user}</p>
-            {dispatchResponse.current_step === "dispatched" && (
-              <Button size="sm" variant="secondary" className="mt-3" onClick={() => navigate("/")}>
-                Back to home
-              </Button>
+            {dispatchResponse.current_step === "dispatched" && dispatchResponse.job_id && (
+              <div className="mt-3 flex gap-2">
+                <Button size="sm" variant="primary" onClick={() => navigate(`/tracking/${dispatchResponse.job_id}`)}>
+                  <MapPin size={14} />
+                  Track mechanic
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => navigate("/")}>
+                  Back to home
+                </Button>
+              </div>
             )}
           </div>
         ) : showNoMechanic ? (

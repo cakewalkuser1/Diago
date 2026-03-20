@@ -289,6 +289,29 @@ class MechanicRespondRequest(BaseModel):
     accepted: bool
 
 
+@router.get("/job/{job_id:int}", response_model=dict)
+async def get_job(
+    job_id: int,
+    _db=Depends(get_db_manager),
+):
+    """Get job details for tracking (customer or mechanic view)."""
+    db = get_db_manager()
+    cursor = db.connection.execute(
+        """SELECT j.id, j.part_info, j.user_latitude, j.user_longitude, j.user_address,
+                  j.status, j.assigned_mechanic_id, j.thread_id, j.created_at,
+                  j.estimated_arrival_at, j.route_distance_mi, j.route_duration_min,
+                  m.name as mechanic_name, m.latitude as mechanic_lat, m.longitude as mechanic_lng
+           FROM jobs j
+           LEFT JOIN mechanics m ON j.assigned_mechanic_id = m.id
+           WHERE j.id = ?""",
+        (job_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return dict(row)
+
+
 @router.post("/job/{job_id:int}/respond", response_model=dict)
 async def mechanic_respond(
     job_id: int,

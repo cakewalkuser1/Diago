@@ -42,3 +42,9 @@ langchain-core>=0.3.0
 # Repair guides (crawler + cloud DB): for scripts and when REPAIR_GUIDES_DB_URL is set
 beautifulsoup4
 psycopg2-binary
+
+# PDF export for diagnosis reports
+reportlab
+
+# Web Push (optional): for mechanic job notifications
+# pywebpush

@@ -93,6 +93,11 @@ class DatabaseManager:
         self._ensure_stripe_subscription_user_table()
         self._run_enterprise_migrations()
         self._ensure_jobs_thread_id_column()
+        self._ensure_analysis_sessions_photos_column()
+        self._ensure_mechanics_tracking_columns()
+        self._ensure_jobs_tracking_columns()
+        self._run_tracking_migrations()
+        self._seed_maintenance_schedules()
         self._seed_if_empty()
         self._seed_trouble_codes_if_empty()
         self._seed_failure_modes_if_empty()
@@ -211,6 +216,103 @@ class DatabaseManager:
                 logger.debug("Added thread_id column to jobs table")
         except sqlite3.OperationalError as e:
             logger.warning("Could not add thread_id to jobs: %s", e)
+
+    def _ensure_analysis_sessions_photos_column(self):
+        """Add photos column to analysis_sessions if missing (JSON array of photo URLs)."""
+        try:
+            cursor = self.connection.execute("PRAGMA table_info(analysis_sessions)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "photos" not in columns:
+                self.connection.execute("ALTER TABLE analysis_sessions ADD COLUMN photos TEXT")
+                self.connection.commit()
+                logger.debug("Added photos column to analysis_sessions")
+        except sqlite3.OperationalError as e:
+            logger.warning("Could not add photos to analysis_sessions: %s", e)
+
+    def _ensure_mechanics_tracking_columns(self):
+        """Add tracking/profile columns to mechanics if missing."""
+        cols = [
+            ("user_id", "TEXT"),
+            ("email", "TEXT"),
+            ("phone", "TEXT"),
+            ("service_radius_mi", "REAL DEFAULT 25"),
+            ("hourly_rate_cents", "INTEGER"),
+            ("bio", "TEXT"),
+            ("profile_photo_url", "TEXT"),
+            ("rating", "REAL DEFAULT 0"),
+            ("total_jobs", "INTEGER DEFAULT 0"),
+            ("is_verified", "INTEGER DEFAULT 0"),
+            ("last_latitude", "REAL"),
+            ("last_longitude", "REAL"),
+            ("last_seen_at", "TIMESTAMP"),
+        ]
+        try:
+            cursor = self.connection.execute("PRAGMA table_info(mechanics)")
+            existing = {row[1] for row in cursor.fetchall()}
+            for name, typ in cols:
+                if name not in existing:
+                    self.connection.execute(f"ALTER TABLE mechanics ADD COLUMN {name} {typ}")
+                    logger.debug("Added %s to mechanics", name)
+            self.connection.commit()
+        except sqlite3.OperationalError as e:
+            logger.warning("Could not add mechanics columns: %s", e)
+
+    def _ensure_jobs_tracking_columns(self):
+        """Add tracking columns to jobs if missing."""
+        cols = [
+            ("estimated_arrival_at", "TIMESTAMP"),
+            ("mechanic_accepted_at", "TIMESTAMP"),
+            ("mechanic_en_route_at", "TIMESTAMP"),
+            ("mechanic_arrived_at", "TIMESTAMP"),
+            ("repair_started_at", "TIMESTAMP"),
+            ("completed_at", "TIMESTAMP"),
+            ("route_distance_mi", "REAL"),
+            ("route_duration_min", "REAL"),
+        ]
+        try:
+            cursor = self.connection.execute("PRAGMA table_info(jobs)")
+            existing = {row[1] for row in cursor.fetchall()}
+            for name, typ in cols:
+                if name not in existing:
+                    self.connection.execute(f"ALTER TABLE jobs ADD COLUMN {name} {typ}")
+                    logger.debug("Added %s to jobs", name)
+            self.connection.commit()
+        except sqlite3.OperationalError as e:
+            logger.warning("Could not add jobs columns: %s", e)
+
+    def _run_tracking_migrations(self):
+        """Run tracking migrations (mechanic_location_log, reviews, push, maintenance)."""
+        migrations_path = Path(__file__).parent / "migrations_tracking.sql"
+        if migrations_path.exists():
+            with open(migrations_path, "r") as f:
+                sql = f.read()
+            self.connection.executescript(sql)
+            self.connection.commit()
+            logger.debug("Tracking migrations applied")
+
+    def _seed_maintenance_schedules(self):
+        """Seed common maintenance intervals if empty."""
+        try:
+            cursor = self.connection.execute("SELECT COUNT(*) FROM maintenance_schedules")
+            if cursor.fetchone()[0] > 0:
+                return
+            schedules = [
+                ("oil_change", 5000, 6, "Engine oil and filter"),
+                ("tire_rotation", 7500, 6, "Rotate tires"),
+                ("brake_inspection", 12000, 12, "Brake pads and rotors"),
+                ("air_filter", 15000, 12, "Engine air filter"),
+                ("coolant_flush", 30000, 24, "Coolant system flush"),
+                ("transmission_fluid", 60000, 60, "Transmission fluid"),
+                ("spark_plugs", 100000, 100, "Spark plug replacement"),
+            ]
+            for st, miles, months, desc in schedules:
+                self.connection.execute(
+                    "INSERT OR IGNORE INTO maintenance_schedules (service_type, interval_miles, interval_months, description) VALUES (?, ?, ?, ?)",
+                    (st, miles, months, desc),
+                )
+            self.connection.commit()
+        except sqlite3.OperationalError as e:
+            logger.debug("maintenance_schedules seed skipped: %s", e)
 
     def _run_enterprise_migrations(self):
         """Run enterprise migrations (repair_logs, etc.)."""
@@ -441,11 +543,17 @@ class DatabaseManager:
 
         try:
             cursor = self.connection.execute(
-                "SELECT id, name, latitude, longitude, availability FROM mechanics WHERE availability = 'available'"
+                "SELECT id, name, latitude, longitude, availability, rating FROM mechanics WHERE availability = 'available'"
             )
             rows = cursor.fetchall()
         except sqlite3.OperationalError:
-            return []
+            try:
+                cursor = self.connection.execute(
+                    "SELECT id, name, latitude, longitude, availability FROM mechanics WHERE availability = 'available'"
+                )
+                rows = cursor.fetchall()
+            except sqlite3.OperationalError:
+                return []
 
         def haversine_mi(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
             R = 3959  # Earth radius in miles
@@ -475,10 +583,104 @@ class DatabaseManager:
                 "name": row["name"],
                 "distance_mi": round(distance_mi, 1),
                 "availability": row["availability"] or "available",
+                "rating": row["rating"] if "rating" in row.keys() else None,
             })
 
         out.sort(key=lambda m: m["distance_mi"])
         return out[:limit]
+
+    def create_mechanic_profile(
+        self,
+        user_id: str,
+        name: str,
+        email: str = "",
+        phone: str = "",
+        latitude: float | None = None,
+        longitude: float | None = None,
+        service_radius_mi: float = 25.0,
+        hourly_rate_cents: int | None = None,
+        bio: str = "",
+        skills: str = "",
+    ) -> int:
+        """Create a mechanic profile linked to user_id. Returns mechanic id."""
+        cursor = self.connection.execute(
+            """INSERT INTO mechanics
+               (user_id, name, email, phone, latitude, longitude, availability,
+                service_radius_mi, hourly_rate_cents, bio, skills)
+               VALUES (?, ?, ?, ?, ?, ?, 'available', ?, ?, ?, ?)""",
+            (user_id, name, email, phone, latitude, longitude, service_radius_mi, hourly_rate_cents, bio, skills),
+        )
+        self.connection.commit()
+        return cursor.lastrowid
+
+    def get_mechanic_by_user_id(self, user_id: str) -> dict | None:
+        """Return mechanic profile by user_id or None."""
+        cursor = self.connection.execute(
+            """SELECT id, user_id, name, email, phone, latitude, longitude, availability,
+                      service_radius_mi, hourly_rate_cents, bio, profile_photo_url,
+                      rating, total_jobs, is_verified, skills
+               FROM mechanics WHERE user_id = ?""",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_mechanic_by_id(self, mechanic_id: int) -> dict | None:
+        """Return mechanic profile by id or None."""
+        cursor = self.connection.execute(
+            """SELECT id, user_id, name, email, phone, latitude, longitude, availability,
+                      service_radius_mi, hourly_rate_cents, bio, profile_photo_url,
+                      rating, total_jobs, is_verified, skills
+               FROM mechanics WHERE id = ?""",
+            (mechanic_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def update_mechanic_profile(
+        self,
+        mechanic_id: int,
+        *,
+        name: str | None = None,
+        email: str | None = None,
+        phone: str | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        service_radius_mi: float | None = None,
+        hourly_rate_cents: int | None = None,
+        bio: str | None = None,
+        profile_photo_url: str | None = None,
+        skills: str | None = None,
+        availability: str | None = None,
+    ) -> bool:
+        """Update mechanic profile. Returns True if updated."""
+        updates = []
+        vals = []
+        for k, v in [
+            ("name", name),
+            ("email", email),
+            ("phone", phone),
+            ("latitude", latitude),
+            ("longitude", longitude),
+            ("service_radius_mi", service_radius_mi),
+            ("hourly_rate_cents", hourly_rate_cents),
+            ("bio", bio),
+            ("profile_photo_url", profile_photo_url),
+            ("skills", skills),
+            ("availability", availability),
+        ]:
+            if v is not None:
+                updates.append(f"{k} = ?")
+                vals.append(v)
+        if not updates:
+            return False
+        vals.append(mechanic_id)
+        self.connection.execute(
+            f"UPDATE mechanics SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            vals,
+        )
+        self.connection.commit()
+        return self.connection.total_changes > 0
 
     def get_failure_modes(self) -> list[dict]:
         """Return all failure modes as list of dicts (for pattern engine)."""

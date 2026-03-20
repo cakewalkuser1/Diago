@@ -128,7 +128,7 @@ export const useAppStore = create<AppState>((set) => ({
   clearCodes: () => set({ activeCodes: [] }),
 
   setDiagnosis: (d) =>
-    set((state) => ({
+    set(() => ({
       diagnosis: d,
       ...(d === null ? { dispatchResponse: null } : {}),
     })),

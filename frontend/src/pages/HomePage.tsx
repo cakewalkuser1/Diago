@@ -109,7 +109,7 @@ export function HomePage() {
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10">
                 <Activity size={28} className="text-primary" />
               </div>
-              <h1 className="hero-headline text-text">Diago</h1>
+              <h1 className="hero-headline text-text">Autopilot</h1>
               <p className="hero-sub">Choose how you’ll use diagnostics</p>
             </section>
             <PersonaSelector />

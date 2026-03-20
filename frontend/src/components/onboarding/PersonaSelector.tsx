@@ -65,7 +65,7 @@ export function PersonaSelector({ onSelect, compact = false }: PersonaSelectorPr
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <p className="text-center text-subtext text-sm">
-        Choose how you want to use Diago
+        Choose how you want to use Autopilot
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {TIERS.map(({ id, title, description, icon: Icon }) => (

@@ -2,6 +2,8 @@
 Stripe payment integration service.
 
 Handles subscription management, checkout sessions, and webhook processing.
+Uses Stripe standard API keys (STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY).
+Do not use legacy API keys; use the keys from Dashboard → Developers → API keys after disabling legacy.
 """
 
 import logging
@@ -29,7 +31,7 @@ def _get_tier_price_id(tier: UserTier) -> str:
 
 
 def _get_stripe_client() -> stripe.StripeClient:
-    """Get configured Stripe client."""
+    """Get configured Stripe client. Use standard secret key from Stripe Dashboard (not legacy)."""
     settings = get_settings()
     api_key = settings.stripe_secret_key
     if not api_key:

@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.autoaudiodiagnostics.diago",
-  appName: "Diago",
+  appName: "Autopilot",
   webDir: "dist",
   server: {
     // In production, the mobile app talks to the cloud API

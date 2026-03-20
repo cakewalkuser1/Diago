@@ -5,12 +5,14 @@ desktop and can be deployed for cloud/mobile.
 """
 
 import asyncio
+import html
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from core.config import get_settings
 from database.db_manager import DatabaseManager
@@ -56,7 +58,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="Diago API",
+        title="Autopilot API",
         description="Automotive Audio Diagnostic Engine API",
         version=settings.app_version,
         lifespan=lifespan,
@@ -87,6 +89,11 @@ def create_app() -> FastAPI:
     from api.routes.repair_guides import router as repair_guides_router
     from api.routes.dispatch import router as dispatch_router
     from api.routes.geocode import router as geocode_router
+    from api.routes.mechanic_profile import router as mechanic_profile_router
+    from api.routes.ws_tracking import router as ws_tracking_router
+    from api.routes.reviews import router as reviews_router
+    from api.routes.notifications import router as notifications_router
+    from api.routes.maintenance import router as maintenance_router
 
     # Register route modules
     app.include_router(diagnosis_router, prefix="/api/v1/diagnosis", tags=["Diagnosis"])
@@ -103,6 +110,16 @@ def create_app() -> FastAPI:
     app.include_router(repair_guides_router, prefix="/api/v1/repair-guides", tags=["Repair Guides"])
     app.include_router(dispatch_router, prefix="/api/v1/dispatch", tags=["Dispatch"])
     app.include_router(geocode_router, prefix="/api/v1", tags=["Geocode"])
+    app.include_router(mechanic_profile_router, prefix="/api/v1/mechanic", tags=["Mechanic Profile"])
+    app.include_router(ws_tracking_router, prefix="/api/v1/tracking", tags=["Tracking"])
+    app.include_router(reviews_router, prefix="/api/v1/reviews", tags=["Reviews"])
+    app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
+    app.include_router(maintenance_router, prefix="/api/v1/maintenance", tags=["Maintenance"])
+
+    # Serve uploaded photos (diagnosis/chat)
+    uploads_dir = settings.user_data_dir / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
     @app.get("/health")
     async def health_check():
@@ -121,7 +138,7 @@ def create_app() -> FastAPI:
         if not row:
             return HTMLResponse(_mechanic_html(job_id, error="Job not found"), status_code=404)
         if row["status"] != "mechanic_pinged":
-            return HTMLResponse(_mechanic_html(job_id, error=f"Job is no longer pending (status: {row['status']})"))
+            return HTMLResponse(_mechanic_html(job_id, error=f"Job is no longer pending (status: {html.escape(str(row['status']))})"))
         part_info = row["part_info"] or "Part repair"
         created = row["created_at"] or ""
         return _mechanic_html(job_id, part_info=part_info, created=created)
@@ -131,19 +148,20 @@ def create_app() -> FastAPI:
 
 def _mechanic_html(job_id: int, part_info: str = "", created: str = "", error: str | None = None) -> str:
     """Minimal HTML for mechanic accept/deny page."""
+    esc = html.escape
     if error:
         content = f"""
     <div class="card">
-      <h1>Diago – Job #{job_id}</h1>
-      <p class="msg err">{error}</p>
+      <h1>Autopilot – Job #{job_id}</h1>
+      <p class="msg err">{esc(error)}</p>
     </div>
     """
     else:
         content = f"""
     <div class="card">
-      <h1>Diago – Job #{job_id}</h1>
-      <p class="part">{part_info}</p>
-      <p class="meta">Requested: {created}</p>
+      <h1>Autopilot – Job #{job_id}</h1>
+      <p class="part">{esc(part_info)}</p>
+      <p class="meta">Requested: {esc(created)}</p>
       <p class="prompt">Accept or deny this job?</p>
       <div class="actions">
         <button id="accept" class="btn accept">Accept</button>
@@ -179,7 +197,7 @@ def _mechanic_html(job_id: int, part_info: str = "", created: str = "", error: s
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Diago – Job #{job_id}</title>
+  <title>Autopilot – Job #{job_id}</title>
   <style>
     * {{ box-sizing: border-box; }}
     body {{ font-family: system-ui, sans-serif; margin: 0; padding: 2rem; background: #1e1e2e; color: #cdd6f4; min-height: 100vh; display: flex; align-items: center; justify-content: center; }}

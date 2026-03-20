@@ -15,7 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -145,7 +145,11 @@ class AppSettings(BaseSettings):
     supabase_url: str = Field(default="", alias="SUPABASE_URL")
     supabase_anon_key: str = Field(default="", alias="SUPABASE_ANON_KEY")
     supabase_jwt_secret: str = Field(default="", alias="SUPABASE_JWT_SECRET")
-    supabase_service_role_key: str = Field(default="", alias="SUPABASE_SERVICE_ROLE_KEY")
+    # Backend: use the "Secret" key (sb_secret_...) from Dashboard → Settings → API. Accept either env name.
+    supabase_service_role_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"),
+    )
 
     # Stripe
     stripe_secret_key: str = Field(default="", alias="STRIPE_SECRET_KEY")
@@ -163,6 +167,9 @@ class AppSettings(BaseSettings):
 
     # Developer bypass: skip diagnosis rate limit (local dev only; do not enable in production)
     disable_diagnosis_rate_limit: bool = Field(default=False, alias="DIAGO_DISABLE_RATE_LIMIT")
+
+    # Web Push (optional): VAPID private key for mechanic job notifications
+    vapid_private_key: str = Field(default="", alias="VAPID_PRIVATE_KEY")
 
     @property
     def project_root(self) -> Path:

@@ -25,7 +25,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { usePersona } from "@/contexts/PersonaContext";
 import { confidenceColor, cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/appStore";
-import { confirmTest, createRepair, getRepairGuidesForDiagnosis, dispatchRun, dispatchContinue, geocodeAddress, createPartsOrder, getPaymentsConfig } from "@/lib/api";
+import { confirmTest, createRepair, getRepairGuidesForDiagnosis, dispatchRun, dispatchContinue, geocodeAddress, createPartsOrder, getPaymentsConfig, exportDiagnosisPdf } from "@/lib/api";
 import { PartPaymentForm } from "@/components/PartPaymentForm";
 
 /** Wrapper that loads Stripe and renders Elements + PartPaymentForm */
@@ -165,6 +165,39 @@ export function ResultsPanel() {
     a.download = `diago_report_${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportPdf = async () => {
+    const vehicleLabel = [
+      vehicleSelection.year,
+      vehicleSelection.makeName,
+      vehicleSelection.modelName,
+      vehicleSelection.trim,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    try {
+      const blob = await exportDiagnosisPdf({
+        top_class: diagnosis.top_class,
+        top_class_display: diagnosis.top_class_display,
+        confidence: diagnosis.confidence,
+        is_ambiguous: diagnosis.is_ambiguous,
+        report_text: diagnosis.report_text,
+        llm_narrative: diagnosis.llm_narrative,
+        class_scores: diagnosis.class_scores,
+        ranked_failure_modes: diagnosis.ranked_failure_modes,
+        symptoms,
+        vehicle: vehicleLabel || undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `diago-diagnosis-${Date.now()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* toast on error if desired */
+    }
   };
 
   const handleConfirmTest = async (testId: string, result: "pass" | "fail") => {
@@ -457,7 +490,7 @@ export function ResultsPanel() {
                   const res = await dispatchRun({
                     symptoms,
                     codes: activeCodes,
-                    behavioral_context: context as Record<string, unknown>,
+                    behavioral_context: context as unknown as Record<string, unknown>,
                   });
                   setDispatchResponse(res);
                 } catch (e) {
@@ -529,7 +562,7 @@ export function ResultsPanel() {
             <div>
               <p className="text-xs font-medium text-text mb-1">Pick a retailer (local first)</p>
               <ul className="space-y-1">
-                {dispatchResponse.part_retailers.map((r) => (
+                {(dispatchResponse.part_retailers ?? []).map((r) => (
                   <li key={r.id}>
                     <button
                       type="button"
@@ -736,7 +769,7 @@ export function ResultsPanel() {
           <div className="space-y-3">
             <p className="text-sm text-subtext">{dispatchResponse.prompt_for_user}</p>
             <ul className="space-y-2">
-              {dispatchResponse.mechanic_list.map((m) => (
+              {(dispatchResponse.mechanic_list ?? []).map((m) => (
                 <li key={m.id}>
                   <button
                     type="button"
@@ -903,7 +936,16 @@ export function ResultsPanel() {
           title="Ctrl+E"
         >
           <Download size={14} />
-          Export Report
+          Export TXT
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleExportPdf}
+          title="Export as PDF"
+        >
+          <Download size={14} />
+          Export PDF
         </Button>
         {isEnterprise && (
           <>

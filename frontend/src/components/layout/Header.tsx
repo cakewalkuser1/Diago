@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Activity, Menu, Home, Stethoscope, Settings2, Zap, Wrench, Building2, CreditCard } from "lucide-react";
+import { Activity, Menu, Home, Stethoscope, Settings2, Zap, Wrench, Building2, CreditCard, Calendar } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
@@ -68,7 +68,7 @@ export function Header() {
           <div className="p-1.5 rounded-lg bg-primary/10">
             <Activity size={20} className="text-primary" />
           </div>
-          <span className="text-base font-semibold tracking-tight">Diago</span>
+          <span className="text-base font-semibold tracking-tight">Autopilot</span>
         </Link>
       </div>
 
@@ -78,6 +78,18 @@ export function Header() {
             {subscription.used}/{subscription.limit}
           </Link>
         )}
+        <Link to="/maintenance">
+          <Button variant="ghost" size="sm" className="text-subtext">
+            <Calendar size={14} />
+            <span className="hidden sm:inline">Maintenance</span>
+          </Button>
+        </Link>
+        <Link to="/mechanic/dashboard">
+          <Button variant="ghost" size="sm" className="text-subtext">
+            <Wrench size={14} />
+            <span className="hidden sm:inline">Mechanic</span>
+          </Button>
+        </Link>
         <Link to="/pricing">
           <Button variant="ghost" size="sm" className="text-subtext">
             <CreditCard size={14} />

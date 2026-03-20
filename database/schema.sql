@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS analysis_sessions (
     audio_path TEXT,
     user_codes TEXT,  -- comma-separated codes entered by user
     notes TEXT,
-    duration_seconds REAL
+    duration_seconds REAL,
+    photos TEXT  -- JSON array of photo URLs
 );
 
 -- Match results for each session

@@ -2,6 +2,7 @@
 Supabase Auth Admin API helpers.
 Updates user app_metadata (e.g. tier) from backend (Stripe webhook).
 Requires SUPABASE_SERVICE_ROLE_KEY and SUPABASE_URL.
+Use the new secret key (sb_secret_...) from Dashboard → Settings → API; disable legacy keys when ready.
 """
 
 import logging

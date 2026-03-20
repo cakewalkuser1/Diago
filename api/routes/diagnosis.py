@@ -6,10 +6,13 @@ Endpoints for running diagnostic analysis (audio + text).
 import base64
 import io
 import logging
+import uuid
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from api.deps import get_db_manager
@@ -133,6 +136,133 @@ def _client_ip(request: Request) -> str:
     if request.client:
         return request.client.host or "unknown"
     return "unknown"
+
+
+MAX_PHOTO_SIZE = 10 * 1024 * 1024  # 10 MB
+ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+@router.post("/upload-photo")
+async def upload_photo(file: UploadFile = File(...)):
+    """
+    Upload a photo for diagnosis or chat context.
+    Accepts JPEG, PNG, WebP. Max 10 MB.
+    Returns { photo_id, url } for attaching to sessions or messages.
+    """
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid content type. Allowed: {', '.join(ALLOWED_CONTENT_TYPES)}",
+        )
+    content = await file.read()
+    if len(content) > MAX_PHOTO_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 10 MB)")
+    ext = ".jpg" if file.content_type == "image/jpeg" else ".png" if file.content_type == "image/png" else ".webp"
+    photo_id = str(uuid.uuid4())[:8] + ext
+    from core.config import get_settings
+    settings = get_settings()
+    uploads_dir = Path(settings.user_data_dir) / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    path = uploads_dir / photo_id
+    path.write_bytes(content)
+    url = f"/uploads/{photo_id}"
+    return {"photo_id": photo_id, "url": url}
+
+
+class PdfExportRequest(BaseModel):
+    """Diagnosis data for PDF export."""
+    top_class: str = ""
+    top_class_display: str = ""
+    confidence: str = ""
+    is_ambiguous: bool = False
+    report_text: str = ""
+    llm_narrative: Optional[str] = None
+    class_scores: list[dict] = Field(default_factory=list)
+    ranked_failure_modes: list[dict] = Field(default_factory=list)
+    symptoms: str = ""
+    vehicle: str = ""
+
+
+def _build_pdf_bytes(req: PdfExportRequest) -> bytes:
+    """Generate PDF report using reportlab."""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter, rightMargin=inch, leftMargin=inch, topMargin=inch, bottomMargin=inch)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(name="Title", parent=styles["Heading1"], fontSize=18, spaceAfter=12)
+    heading_style = styles["Heading2"]
+    body_style = styles["Normal"]
+
+    story = []
+    story.append(Paragraph("Autopilot Diagnostic Report", title_style))
+    story.append(Spacer(1, 0.2 * inch))
+
+    if req.vehicle:
+        story.append(Paragraph(f"<b>Vehicle:</b> {req.vehicle}", body_style))
+    if req.symptoms:
+        story.append(Paragraph(f"<b>Symptoms:</b> {req.symptoms}", body_style))
+    story.append(Spacer(1, 0.2 * inch))
+
+    story.append(Paragraph("<b>Primary Diagnosis</b>", heading_style))
+    story.append(Paragraph(f"{req.top_class_display or req.top_class} ({req.confidence} confidence)", body_style))
+    if req.is_ambiguous:
+        story.append(Paragraph("Result is ambiguous; consider additional tests.", body_style))
+    story.append(Spacer(1, 0.2 * inch))
+
+    if req.class_scores:
+        story.append(Paragraph("<b>Mechanical Class Scores</b>", heading_style))
+        data = [["Class", "Score"]]
+        for cs in req.class_scores[:8]:
+            name = cs.get("display_name") or cs.get("class_name", "")
+            score = cs.get("score", 0)
+            data.append([name, f"{score:.1%}"])
+        t = Table(data)
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 10),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 0.2 * inch))
+
+    if req.ranked_failure_modes:
+        story.append(Paragraph("<b>Failure Modes</b>", heading_style))
+        for fm in req.ranked_failure_modes[:5]:
+            name = fm.get("display_name", "")
+            desc = (fm.get("description") or "")[:200]
+            story.append(Paragraph(f"<b>{name}</b>: {desc}", body_style))
+            story.append(Spacer(1, 0.1 * inch))
+        story.append(Spacer(1, 0.2 * inch))
+
+    story.append(Paragraph("<b>Analysis</b>", heading_style))
+    narrative = req.llm_narrative or req.report_text or "No analysis available."
+    for para in narrative.split("\n\n"):
+        if para.strip():
+            story.append(Paragraph(para.strip().replace("\n", "<br/>"), body_style))
+            story.append(Spacer(1, 0.1 * inch))
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+@router.post("/export-pdf")
+async def export_diagnosis_pdf(request: PdfExportRequest):
+    """Generate a PDF report from diagnosis data. Returns application/pdf."""
+    pdf_bytes = _build_pdf_bytes(request)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=diago-diagnosis-report.pdf"},
+    )
 
 
 @router.post("/text", response_model=DiagnosisResponse)

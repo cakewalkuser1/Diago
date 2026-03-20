@@ -25,13 +25,24 @@ PARTS_BY_CLASS: dict[str, list[str]] = {
     "unknown": ["Inspect symptom area", "Check related sensors", "Review codes"],
 }
 
-# Stub retailers; replace with real API when available (see docs/dispatch-retailer-integration.md)
+# Fallback when parts API returns nothing
 MOCK_RETAILERS = [
     {"id": "az1", "name": "AutoZone", "distance_mi": 2.1, "store_id": "store_az_1"},
     {"id": "napa1", "name": "NAPA", "distance_mi": 3.0, "store_id": "store_napa_1"},
     {"id": "oreilly1", "name": "O'Reilly", "distance_mi": 2.5, "store_id": "store_oreilly_1"},
-    {"id": "advance1", "name": "Advance Auto Parts", "distance_mi": 3.2, "store_id": "store_advance_1"},
 ]
+
+
+def _get_part_retailers(part_name: str, user_lat: float | None, user_lng: float | None) -> list[dict]:
+    """Get retailers from parts API or fallback to mock."""
+    try:
+        from api.services.parts_pricing import get_parts_from_all_retailers
+        retailers = get_parts_from_all_retailers(part_name, lat=user_lat, lng=user_lng)
+        if retailers:
+            return retailers
+    except Exception as e:
+        logger.debug("Parts pricing unavailable: %s", e)
+    return MOCK_RETAILERS.copy()
 
 def _should_skip_diagnosis(state: DispatchState) -> bool:
     """True if user wants to skip diagnosis and go straight to mechanic."""
@@ -41,10 +52,11 @@ def _should_skip_diagnosis(state: DispatchState) -> bool:
 def direct_to_mechanic_setup_node(state: DispatchState) -> dict:
     """Bypass diagnosis: set up state from user's repair description and go to find mechanics."""
     part_info = (state.get("part_info") or "").strip() or "Repair as described"
+    retailers = _get_part_retailers(part_info, state.get("user_latitude"), state.get("user_longitude"))
     return {
         "suggested_parts": [{"name": part_info}],
         "selected_part": {"name": part_info},
-        "part_retailers": MOCK_RETAILERS.copy(),
+        "part_retailers": retailers,
         "stock_confirmed": True,
         "payment_confirmed": True,
         "current_step": "awaiting_find_mechanics",
@@ -119,7 +131,8 @@ def summarize_diagnosis_node(state: DispatchState) -> dict:
 def suggest_parts_node(state: DispatchState) -> dict:
     """Suggest parts and local retailers. Interrupt for user to pick part."""
     suggested = state.get("suggested_parts", [])
-    retailers = MOCK_RETAILERS.copy()
+    part_name = suggested[0]["name"] if suggested else "Part"
+    retailers = _get_part_retailers(part_name, state.get("user_latitude"), state.get("user_longitude"))
     return {
         "part_retailers": retailers,
         "suggested_parts": suggested,
@@ -223,21 +236,48 @@ def ping_mechanic_node(state: DispatchState) -> dict:
 
 
 def on_accept_node(state: DispatchState) -> dict:
-    """Mechanic accepted: dispatch."""
+    """Mechanic accepted: dispatch. Compute ETA and update job with tracking fields."""
+    from datetime import datetime, timedelta
+
     job_id = state.get("job_id")
     if job_id:
         from api.deps import get_db_manager
+        from core.dispatch.routing import get_route_eta
+
         db = get_db_manager()
-        db.connection.execute(
-            "UPDATE jobs SET status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        cursor = db.connection.execute(
+            """SELECT j.user_latitude, j.user_longitude, m.latitude as m_lat, m.longitude as m_lng
+               FROM jobs j
+               JOIN mechanics m ON j.assigned_mechanic_id = m.id
+               WHERE j.id = ?""",
             (job_id,),
+        )
+        row = cursor.fetchone()
+        route_distance_mi = None
+        route_duration_min = None
+        estimated_arrival_at = None
+        if row and row["user_latitude"] and row["user_longitude"] and row["m_lat"] and row["m_lng"]:
+            route = get_route_eta(
+                row["m_lat"], row["m_lng"],
+                row["user_latitude"], row["user_longitude"],
+            )
+            route_distance_mi = route.distance_mi
+            route_duration_min = route.duration_min
+            eta = datetime.utcnow() + timedelta(minutes=route.duration_min)
+            estimated_arrival_at = eta.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        db.connection.execute(
+            """UPDATE jobs SET status = 'accepted', mechanic_accepted_at = CURRENT_TIMESTAMP,
+               route_distance_mi = ?, route_duration_min = ?, estimated_arrival_at = ?,
+               updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
+            (route_distance_mi, route_duration_min, estimated_arrival_at, job_id),
         )
         db.connection.commit()
 
     return {
         "job_status": "accepted",
         "current_step": "dispatched",
-        "prompt_for_user": "Mechanic accepted! They will pick up the part and head to you.",
+        "prompt_for_user": "Mechanic accepted! They will pick up the part and head to you. Track their arrival on the map.",
     }
 
 

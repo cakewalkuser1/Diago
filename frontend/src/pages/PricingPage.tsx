@@ -15,6 +15,7 @@ const TIERS = [
     limit: "3 diagnoses / month",
     description: "Full diagnostic flow, symptoms, codes, failure modes.",
     price: null,
+    pricePeriod: null,
     icon: Zap,
     features: ["Text + audio diagnosis", "Failure mode ranking", "Confirm tests"],
   },
@@ -23,20 +24,35 @@ const TIERS = [
     name: "Pro",
     limit: "500 diagnoses / month",
     description: "For DIYers and enthusiasts.",
-    price: "Monthly subscription",
+    price: "$14.99",
+    pricePeriod: "/month",
     priceId: "pro" as const,
     icon: Wrench,
-    features: ["Everything in Free", "Higher diagnosis cap", "Priority support (coming soon)"],
+    features: [
+      "Everything in Free",
+      "500 diagnoses per month",
+      "Unlimited DiagBot chat",
+      "Repair guides & service manuals",
+      "Priority queue",
+    ],
   },
   {
     id: "premium" as const,
     name: "Premium",
     limit: "10,000+ / month",
     description: "For shops and power users.",
-    price: "Higher monthly",
+    price: "$49.99",
+    pricePeriod: "/month",
     priceId: "premium" as const,
     icon: Building2,
-    features: ["Everything in Pro", "Highest cap", "API access (coming soon)"],
+    features: [
+      "Everything in Pro",
+      "10,000+ diagnoses per month",
+      "API access",
+      "Shop analytics dashboard",
+      "Dispatch & mechanic matching",
+      "Multi-technician seats",
+    ],
   },
 ];
 
@@ -138,7 +154,12 @@ export function PricingPage() {
                 <p className="text-xs text-overlay0 mb-1">{t.limit}</p>
                 <p className="text-sm text-subtext mb-4">{t.description}</p>
                 {t.price != null && (
-                  <p className="text-sm font-medium text-text mb-3">{t.price}</p>
+                  <div className="mb-3">
+                    <span className="text-2xl font-bold text-text">{t.price}</span>
+                    {t.pricePeriod && (
+                      <span className="text-sm text-subtext ml-0.5">{t.pricePeriod}</span>
+                    )}
+                  </div>
                 )}
                 <ul className="space-y-2 mb-6 flex-1">
                   {t.features.map((f) => (

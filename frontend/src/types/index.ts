@@ -254,6 +254,7 @@ export interface DispatchMechanic {
   name: string;
   distance_mi: number;
   availability: string;
+  rating?: number | null;
 }
 
 export interface DispatchResponse {
