@@ -69,7 +69,7 @@ export function SessionHistory() {
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-2">
       <h3 className="text-sm font-semibold text-text flex items-center gap-2 mb-3">
-        <History size={16} className="text-primary" />
+        <History size={16} className="text-[var(--color-secondary)]" />
         Session History
         <span className="text-xs text-overlay0 font-normal">
           ({sessions.data.length})
@@ -79,7 +79,7 @@ export function SessionHistory() {
       {sessions.data.map((session: Session) => (
         <div
           key={session.id}
-          className="bg-surface0 border border-surface1 rounded-lg overflow-hidden"
+          className="bg-surface0 border-l-4 border-l-[var(--color-secondary)] border border-surface1 rounded-lg overflow-hidden"
         >
           {/* Session header */}
           <button

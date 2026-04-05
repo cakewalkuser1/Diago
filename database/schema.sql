@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS analysis_sessions (
     audio_path TEXT,
     user_codes TEXT,  -- comma-separated codes entered by user
     notes TEXT,
-    duration_seconds REAL
+    duration_seconds REAL,
+    photos TEXT  -- JSON array of photo URLs
 );
 
 -- Match results for each session
@@ -130,3 +131,54 @@ CREATE TABLE IF NOT EXISTS stripe_subscription_user (
     stripe_subscription_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL
 );
+
+-- Dispatch: mobile mechanics (for "find mechanic in vicinity")
+CREATE TABLE IF NOT EXISTS mechanics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    latitude REAL,
+    longitude REAL,
+    availability TEXT DEFAULT 'available',  -- available, busy, offline
+    contact TEXT,
+    skills TEXT,  -- comma-separated or JSON for vehicle focus
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_mechanics_availability ON mechanics(availability);
+CREATE INDEX IF NOT EXISTS idx_mechanics_location ON mechanics(latitude, longitude);
+
+-- Dispatch: jobs (diagnosis -> part -> mechanic assignment)
+CREATE TABLE IF NOT EXISTS jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    diagnosis_session_id INTEGER,
+    part_info TEXT,
+    user_latitude REAL,
+    user_longitude REAL,
+    user_address TEXT,
+    status TEXT NOT NULL DEFAULT 'pending_mechanic',  -- pending_mechanic, mechanic_pinged, accepted, denied, dispatched, completed
+    assigned_mechanic_id INTEGER,
+    thread_id TEXT,  -- LangGraph thread_id for resuming on mechanic respond
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (diagnosis_session_id) REFERENCES analysis_sessions(id) ON DELETE SET NULL,
+    FOREIGN KEY (assigned_mechanic_id) REFERENCES mechanics(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id);
+
+-- Dispatch: parts orders (part selection + payment + stock)
+CREATE TABLE IF NOT EXISTS parts_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    part_description TEXT NOT NULL,
+    retailer TEXT,
+    retailer_store_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending_payment',  -- pending_payment, paid, stock_confirmed
+    payment_intent_id TEXT,
+    amount_cents INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_parts_orders_user ON parts_orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_parts_orders_status ON parts_orders(status);

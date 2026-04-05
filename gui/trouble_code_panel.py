@@ -20,8 +20,8 @@ from core.symptom_parser import parse_symptoms, ParsedSymptoms
 from core.feature_extraction import BehavioralContext
 
 
-# Regex pattern for valid OBD-II trouble codes
-DTC_PATTERN = re.compile(r"^[PBCU]\d{4}$", re.IGNORECASE)
+# Regex pattern for valid OBD-II trouble codes (P/B/C/U + 4 hex digits, e.g. P0300, P219A)
+DTC_PATTERN = re.compile(r"^[PBCU][0-9A-Fa-f]{4}$", re.IGNORECASE)
 
 
 class KeywordChip(QFrame):
@@ -199,7 +199,7 @@ class TroubleCodePanel(QWidget):
         self.code_input.setMaximumWidth(200)
         self.code_input.setToolTip(
             "Enter an OBD-II code: P (Powertrain), B (Body), "
-            "C (Chassis), or U (Network) followed by 4 digits"
+            "C (Chassis), or U (Network) followed by 4 hex digits (e.g. P0300, P219A)"
         )
         code_row.addWidget(self.code_input)
 
@@ -426,7 +426,7 @@ class TroubleCodePanel(QWidget):
 
         if not DTC_PATTERN.match(code):
             self.validation_label.setText(
-                "Invalid format. Use: P/B/C/U + 4 digits (e.g., P0301)"
+                "Invalid format. Use: P/B/C/U + 4 hex digits (e.g. P0300, P219A)"
             )
             self.validation_label.setVisible(True)
             return

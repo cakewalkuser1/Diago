@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   BehavioralContext,
   DiagnosisResponse,
+  DispatchResponse,
   ChatMessage,
   ViewMode,
   RecordDuration,
@@ -42,6 +43,9 @@ interface AppState {
   /* Fuel trims (optional, for DIYer) */
   fuelTrims: { stft: number | null; ltft: number | null };
 
+  /* Dispatch (get parts -> find mechanic) */
+  dispatchResponse: DispatchResponse | null;
+
   /* Actions */
   setAudioBlob: (blob: Blob | null, fileName?: string) => void;
   setIsRecording: (v: boolean) => void;
@@ -62,6 +66,7 @@ interface AppState {
   setSidebarOpen: (v: boolean) => void;
   setVehicleSelection: (v: Partial<VehicleSelection> | null) => void;
   setFuelTrims: (v: Partial<{ stft: number | null; ltft: number | null }>) => void;
+  setDispatchResponse: (r: DispatchResponse | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -96,6 +101,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   fuelTrims: { stft: null, ltft: null },
 
+  dispatchResponse: null,
+
   /* Actions */
   setAudioBlob: (blob, fileName) =>
     set({ audioBlob: blob, audioFileName: fileName ?? null }),
@@ -120,7 +127,11 @@ export const useAppStore = create<AppState>((set) => ({
     })),
   clearCodes: () => set({ activeCodes: [] }),
 
-  setDiagnosis: (d) => set({ diagnosis: d }),
+  setDiagnosis: (d) =>
+    set(() => ({
+      diagnosis: d,
+      ...(d === null ? { dispatchResponse: null } : {}),
+    })),
   setIsDiagnosing: (v) => set({ isDiagnosing: v }),
 
   addChatMessage: (role, content) =>
@@ -153,4 +164,5 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       fuelTrims: { ...state.fuelTrims, ...v },
     })),
+  setDispatchResponse: (r) => set({ dispatchResponse: r }),
 }));

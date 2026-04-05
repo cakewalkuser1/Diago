@@ -228,24 +228,21 @@ export function DiagnoseView() {
             isOnetime ? (
               /* One-Time simplified wizard */
               <>
-                <div className="flex items-center gap-1 px-3 sm:px-4 py-2 border-b border-surface1 bg-mantle/50">
-                  {ONETIME_WIZARD_STEPS.map(({ id, label, icon: Icon }, i) => (
-                    <span key={id} className="flex items-center gap-1">
-                      <span
-                        className={cn(
-                          "flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                          onetimeStep === id ? "bg-primary/20 text-primary" : "text-overlay0/70"
-                        )}
-                      >
-                        <Icon size={12} />
-                        {label}
-                      </span>
-                      {i < ONETIME_WIZARD_STEPS.length - 1 && (
-                        <ChevronRight size={14} className="text-overlay0/50" />
+<div className="flex items-center justify-center gap-2 px-3 py-2 border-b border-surface1/60 bg-mantle/30">
+                {ONETIME_WIZARD_STEPS.map(({ id }, i) => (
+                  <span key={id} className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "w-2 h-2 rounded-full transition-colors",
+                        onetimeStep === id ? "bg-primary" : onetimeStep > id ? "bg-primary/50" : "bg-surface2"
                       )}
-                    </span>
-                  ))}
-                </div>
+                    />
+                    {i < ONETIME_WIZARD_STEPS.length - 1 && (
+                      <span className="w-4 h-px bg-surface2" />
+                    )}
+                  </span>
+                ))}
+              </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="p-6 sm:p-8 max-w-xl mx-auto space-y-6">
                     {onetimeStep === 1 && (
@@ -363,24 +360,17 @@ export function DiagnoseView() {
             ) : (
             /* DIY/Enterprise step-by-step wizard */
             <>
-              <div className="flex items-center gap-1 px-3 sm:px-4 py-2 border-b border-surface1 bg-mantle/50">
-                {WIZARD_STEPS.map(({ id, label, icon: Icon }, i) => (
-                  <span key={id} className="flex items-center gap-1">
+              <div className="flex items-center justify-center gap-2 px-3 py-2 border-b border-surface1/60 bg-mantle/30">
+                {WIZARD_STEPS.map(({ id }, i) => (
+                  <span key={id} className="flex items-center gap-2">
                     <span
                       className={cn(
-                        "flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                        diagnosisStep === id
-                          ? "bg-primary/20 text-primary"
-                          : diagnosisStep > id
-                            ? "text-overlay0"
-                            : "text-overlay0/70"
+                        "w-2 h-2 rounded-full transition-colors",
+                        diagnosisStep === id ? "bg-primary" : diagnosisStep > id ? "bg-primary/50" : "bg-surface2"
                       )}
-                    >
-                      <Icon size={12} />
-                      {label}
-                    </span>
+                    />
                     {i < WIZARD_STEPS.length - 1 && (
-                      <ChevronRight size={14} className="text-overlay0/50" />
+                      <span className="w-4 h-px bg-surface2" />
                     )}
                   </span>
                 ))}
@@ -541,7 +531,7 @@ export function DiagnoseView() {
             <>
               {!isOnetime && <RecordPanel />}
               {!isOnetime && <SpectrogramView />}
-              <div className="flex items-center justify-center px-3 sm:px-4 py-2 border-y border-surface1">
+              <div className="flex items-center justify-center px-3 py-2 border-y border-surface1/60 bg-mantle/20">
                 <Button
                   variant="primary"
                   size="lg"

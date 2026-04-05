@@ -15,28 +15,59 @@ const TIERS = [
     limit: "3 diagnoses / month",
     description: "Full diagnostic flow, symptoms, codes, failure modes.",
     price: null,
+    pricePeriod: null,
     icon: Zap,
     features: ["Text + audio diagnosis", "Failure mode ranking", "Confirm tests"],
   },
   {
-    id: "pro" as const,
-    name: "Pro",
-    limit: "500 diagnoses / month",
-    description: "For DIYers and enthusiasts.",
-    price: "Monthly subscription",
-    priceId: "pro" as const,
+    id: "diy" as const,
+    name: "D.I.Y",
+    limit: "50 diagnoses / month",
+    description: "For home mechanics and hobbyists.",
+    price: "$4.99",
+    pricePeriod: "/month",
+    priceId: "diy" as const,
     icon: Wrench,
-    features: ["Everything in Free", "Higher diagnosis cap", "Priority support (coming soon)"],
+    features: [
+      "Everything in Free",
+      "50 diagnoses per month",
+      "DiagBot chat",
+      "Repair guides & service manuals",
+    ],
   },
   {
-    id: "premium" as const,
-    name: "Premium",
+    id: "pro_mechanic" as const,
+    name: "Pro Mechanic",
+    limit: "500 diagnoses / month",
+    description: "For professional mechanics.",
+    price: "$19.99",
+    pricePeriod: "/month",
+    priceId: "pro_mechanic" as const,
+    icon: Wrench,
+    features: [
+      "Everything in D.I.Y",
+      "500 diagnoses per month",
+      "Unlimited DiagBot chat",
+      "Priority queue",
+      "Dispatch & mechanic matching",
+    ],
+  },
+  {
+    id: "shop" as const,
+    name: "Shop",
     limit: "10,000+ / month",
-    description: "For shops and power users.",
-    price: "Higher monthly",
-    priceId: "premium" as const,
+    description: "For shops and multi-technician teams.",
+    price: "$99.99",
+    pricePeriod: "/month",
+    priceId: "shop" as const,
     icon: Building2,
-    features: ["Everything in Pro", "Highest cap", "API access (coming soon)"],
+    features: [
+      "Everything in Pro Mechanic",
+      "10,000+ diagnoses per month",
+      "API access",
+      "Shop analytics dashboard",
+      "Multi-technician seats",
+    ],
   },
 ];
 
@@ -45,7 +76,7 @@ export function PricingPage() {
   const [searchParams] = useSearchParams();
   const session = useAuthStore((s) => s.session);
   const tier = useAuthStore((s) => s.tier);
-  const [loadingTier, setLoadingTier] = useState<"pro" | "premium" | null>(null);
+  const [loadingTier, setLoadingTier] = useState<"diy" | "pro_mechanic" | "shop" | null>(null);
   const toast = useToastStore((s) => s.show);
 
   const success = searchParams.get("success");
@@ -61,7 +92,7 @@ export function PricingPage() {
     if (success && session) refetchSubscription();
   }, [success, session, refetchSubscription]);
 
-  const handleUpgrade = async (tierId: "pro" | "premium") => {
+  const handleUpgrade = async (tierId: "diy" | "pro_mechanic" | "shop") => {
     if (!session?.access_token) {
       toast("Sign in to upgrade", "error");
       return;
@@ -107,11 +138,16 @@ export function PricingPage() {
         )}
 
         {session && subscription && (
-          <div className="mb-6 p-4 rounded-lg bg-surface0 border border-surface1">
+          <div className="mb-6 p-4 rounded-xl bg-surface0">
             <p className="text-sm text-text">
-              Your plan: <strong className="capitalize">{subscription.tier}</strong>
+              Your plan:{" "}
+              <strong className="capitalize" style={{ color: "var(--ds-primary-container)" }}>
+                {subscription.tier}
+              </strong>
               {" · "}
-              {subscription.used} of {subscription.limit} diagnoses used this month
+              <span style={{ color: "var(--ds-secondary-dim)" }}>{subscription.used}</span>
+              {" of "}
+              {subscription.limit} diagnoses used
               {" · "}
               <span className="text-overlay0">{subscription.remaining} remaining</span>
             </p>
@@ -126,10 +162,11 @@ export function PricingPage() {
             return (
               <div
                 key={t.id}
-                className={`
-                  rounded-xl border p-5 flex flex-col
-                  ${isCurrent ? "border-primary bg-primary/5" : "border-surface1 bg-surface0"}
-                `}
+                className={`rounded-xl p-5 flex flex-col transition-all duration-200 ${
+                  isCurrent
+                    ? "bg-surface1 shadow-[0_0_0_1.5px_var(--ds-primary-container),0_20px_40px_rgba(255,86,56,0.1)]"
+                    : "bg-surface0 hover:bg-surface1 card-shadow"
+                }`}
               >
                 <div className="flex items-center gap-2 mb-2">
                   <Icon size={20} className="text-primary" />
@@ -138,7 +175,12 @@ export function PricingPage() {
                 <p className="text-xs text-overlay0 mb-1">{t.limit}</p>
                 <p className="text-sm text-subtext mb-4">{t.description}</p>
                 {t.price != null && (
-                  <p className="text-sm font-medium text-text mb-3">{t.price}</p>
+                  <div className="mb-3">
+                    <span className="text-2xl font-bold text-text">{t.price}</span>
+                    {t.pricePeriod && (
+                      <span className="text-sm text-subtext ml-0.5">{t.pricePeriod}</span>
+                    )}
+                  </div>
                 )}
                 <ul className="space-y-2 mb-6 flex-1">
                   {t.features.map((f) => (

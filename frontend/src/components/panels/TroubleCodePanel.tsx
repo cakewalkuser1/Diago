@@ -6,7 +6,8 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { useAppStore } from "@/stores/appStore";
 import { codeColor } from "@/lib/utils";
 
-const CODE_REGEX = /^[PBCU]\d{4}$/i;
+/** OBD-II: P/B/C/U + 4 hex digits (e.g. P0300, P219A) */
+const CODE_REGEX = /^[PBCU][0-9A-F]{4}$/i;
 
 interface TroubleCodePanelProps {
   /** When true, only show the trouble codes section (no symptom textarea). */
@@ -30,7 +31,7 @@ export function TroubleCodePanel({ codesOnly }: TroubleCodePanelProps) {
     const code = codeInput.trim().toUpperCase();
     if (!code) return;
     if (!CODE_REGEX.test(code)) {
-      setCodeError("Format: P/B/C/U + 4 digits (e.g. P0300)");
+      setCodeError("Format: P/B/C/U + 4 hex digits (e.g. P0300, P219A)");
       return;
     }
     if (activeCodes.includes(code)) {

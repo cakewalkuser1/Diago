@@ -65,7 +65,7 @@ export function PersonaSelector({ onSelect, compact = false }: PersonaSelectorPr
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <p className="text-center text-subtext text-sm">
-        Choose how you want to use Diago
+        Choose how you want to use Autopilot
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {TIERS.map(({ id, title, description, icon: Icon }) => (
@@ -74,14 +74,14 @@ export function PersonaSelector({ onSelect, compact = false }: PersonaSelectorPr
             type="button"
             onClick={() => handleSelect(id)}
             className={cn(
-              "flex flex-col items-start gap-3 p-5 rounded-xl border-2 border-surface1",
-              "bg-surface0/60 hover:bg-surface0 hover:border-primary/50",
-              "text-left transition-all duration-150",
-              "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+              "flex flex-col items-start gap-3 p-5 rounded-xl",
+              "bg-surface0 hover:bg-surface1",
+              "text-left transition-all duration-200 card-shadow",
+              "focus:outline-none focus:ring-1 focus:ring-[var(--ds-primary-container)]/40"
             )}
           >
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Icon size={24} className="text-primary" />
+            <div className="p-2 rounded-lg bg-[var(--ds-primary-container)]/10">
+              <Icon size={22} style={{ color: "var(--ds-primary-container)" }} />
             </div>
             <div>
               <h3 className="font-semibold text-text mb-1">{title}</h3>

@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
-/* ─── Design System: Unified tokens for light + dark themes ─── */
+/* ─── Design System: The Kinetic Expert ─── */
 @theme {
-  /* Semantic tokens – values set per data-theme below */
   --color-base: var(--ds-base);
   --color-mantle: var(--ds-mantle);
   --color-crust: var(--ds-crust);
@@ -14,65 +14,74 @@
   --color-text: var(--ds-text);
   --color-subtext: var(--ds-subtext);
   --color-primary: var(--ds-primary);
+  --color-primary-container: var(--ds-primary-container);
   --color-secondary: var(--ds-secondary);
+  --color-secondary-dim: var(--ds-secondary-dim);
+  --color-accent-orange: var(--ds-primary-container);
   --color-green: var(--ds-green);
   --color-yellow: var(--ds-yellow);
   --color-red: var(--ds-red);
-  /* Card styling */
-  --radius-card: 10px;
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-card-dark: 0 2px 8px rgba(0, 0, 0, 0.3);
-  /* Typography */
+
+  --radius-card: 12px;
+  --radius-card-tight: 8px;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --space-section: 1.5rem;
+  --space-block: 1rem;
 }
 
-/* ─── Light theme (default for One-Time) ─── */
-:root,
+/* ─── Default (dark): Obsidian canvas ─── */
+:root {
+  --ds-base: #131313;
+  --ds-mantle: #0e0e0e;
+  --ds-crust: #090909;
+  --ds-surface0: #1a1a1a;
+  --ds-surface1: #252525;
+  --ds-surface2: #333333;
+  --ds-overlay0: #555555;
+  --ds-overlay1: #888888;
+  --ds-text: #f0f0f0;
+  --ds-subtext: #7a7a7a;
+  --ds-primary: #ffb4a5;
+  --ds-primary-container: #ff5638;
+  --ds-secondary: #bdf4ff;
+  --ds-secondary-dim: #00daf3;
+  --ds-green: #4ade80;
+  --ds-yellow: #fbbf24;
+  --ds-red: #ef4444;
+  --ds-gradient-primary: linear-gradient(135deg, #ff5638 0%, #ff8a75 100%);
+  --ds-gradient-secondary: linear-gradient(135deg, #00b8d4 0%, #00daf3 100%);
+  --ds-glass-bg: rgba(26, 26, 26, 0.65);
+  --ds-glass-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Light theme override ─── */
 [data-theme="light"] {
-  --ds-base: #F9FAFB;
-  --ds-mantle: #FFFFFF;
-  --ds-crust: #F3F4F6;
-  --ds-surface0: #FFFFFF;
-  --ds-surface1: #F3F4F6;
-  --ds-surface2: #E5E7EB;
-  --ds-overlay0: #9CA3AF;
-  --ds-overlay1: #6B7280;
-  --ds-text: #111827;
-  --ds-subtext: #4B5563;
-  --ds-primary: #3B82F6;
-  --ds-secondary: #0EA5E9;
-  --ds-green: #10B981;
-  --ds-yellow: #F59E0B;
-  --ds-red: #EF4444;
-  --ds-gradient-primary: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
-  --ds-gradient-secondary: linear-gradient(135deg, #0284C7 0%, #0EA5E9 100%);
+  --ds-base: #f5f5f5;
+  --ds-mantle: #ffffff;
+  --ds-crust: #eeeeee;
+  --ds-surface0: #efefef;
+  --ds-surface1: #e0e0e0;
+  --ds-surface2: #cccccc;
+  --ds-overlay0: #999999;
+  --ds-overlay1: #666666;
+  --ds-text: #111111;
+  --ds-subtext: #555555;
+  --ds-primary: #cc2200;
+  --ds-primary-container: #ff5638;
+  --ds-secondary: #006688;
+  --ds-secondary-dim: #0099bb;
+  --ds-green: #16a34a;
+  --ds-yellow: #d97706;
+  --ds-red: #dc2626;
+  --ds-gradient-primary: linear-gradient(135deg, #ff5638 0%, #ff7a5e 100%);
+  --ds-gradient-secondary: linear-gradient(135deg, #0099bb 0%, #00c5e0 100%);
+  --ds-glass-bg: rgba(245, 245, 245, 0.75);
+  --ds-glass-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
 }
 
-/* ─── Dark theme (default for Enterprise) ─── */
-[data-theme="dark"] {
-  --ds-base: #111827;
-  --ds-mantle: #1F2937;
-  --ds-crust: #0F172A;
-  --ds-surface0: #1F2937;
-  --ds-surface1: #374151;
-  --ds-surface2: #4B5563;
-  --ds-overlay0: #6B7280;
-  --ds-overlay1: #9CA3AF;
-  --ds-text: #F9FAFB;
-  --ds-subtext: #D1D5DB;
-  --ds-primary: #3B82F6;
-  --ds-secondary: #22D3EE;
-  --ds-green: #34D399;
-  --ds-yellow: #FBBF24;
-  --ds-red: #F87171;
-  --ds-gradient-primary: linear-gradient(135deg, #2563EB 0%, #60A5FA 100%);
-  --ds-gradient-secondary: linear-gradient(135deg, #0EA5E9 0%, #22D3EE 100%);
-}
-
-/* ─── Base Styles ─── */
-html,
-body,
-#root {
+/* ─── Base ─── */
+html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
@@ -81,38 +90,40 @@ body,
   font-family: var(--font-sans);
   font-size: 15px;
   font-weight: 400;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Theme-specific backgrounds ─── */
-[data-theme="light"] body {
-  background: var(--color-base);
+/* ─── Typography ─── */
+.hero-headline {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2.5rem, 7vw, 4rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.0;
 }
-[data-theme="dark"] body {
-  background: var(--color-base);
+.section-headline {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
 }
-
-/* ─── Scrollbar ─── */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: var(--color-mantle);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-surface1);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-surface2);
+.hero-sub {
+  font-size: clamp(0.9375rem, 2vw, 1.0625rem);
+  color: var(--ds-subtext);
+  line-height: 1.65;
+  font-weight: 400;
 }
 
-/* ─── Selection ─── */
-::selection {
-  background-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+/* ─── Glassmorphism ─── */
+.glass {
+  background: var(--ds-glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--ds-glass-shadow);
 }
 
-/* ─── Gradient utilities for buttons / progress ─── */
+/* ─── Gradient utilities ─── */
 .bg-gradient-primary {
   background: var(--ds-gradient-primary);
 }
@@ -120,13 +131,45 @@ body,
   background: var(--ds-gradient-secondary);
 }
 .progress-fill-gradient {
-  background: linear-gradient(90deg, var(--color-secondary) 0%, var(--color-primary) 100%);
+  background: var(--ds-gradient-primary);
 }
 
-/* ─── Card utilities ─── */
+/* ─── Ambient shadow ─── */
 .card-shadow {
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
 }
-[data-theme="dark"] .card-shadow {
-  box-shadow: var(--shadow-card-dark);
+
+/* ─── Dashboard card entrance ─── */
+@keyframes dashboard-card-enter {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dashboard-card {
+  animation: dashboard-card-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.dashboard-card:nth-child(1)  { animation-delay: 0ms; }
+.dashboard-card:nth-child(2)  { animation-delay: 60ms; }
+.dashboard-card:nth-child(3)  { animation-delay: 120ms; }
+.dashboard-card:nth-child(4)  { animation-delay: 180ms; }
+.dashboard-card:nth-child(5)  { animation-delay: 240ms; }
+.dashboard-card:nth-child(n+6){ animation-delay: 300ms; }
+
+/* ─── AI status pulse ─── */
+@keyframes ai-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.15); }
+}
+.ai-pulse {
+  animation: ai-pulse 2.5s ease-in-out infinite;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--ds-surface2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ds-overlay0); }
+
+/* ─── Selection ─── */
+::selection {
+  background: color-mix(in srgb, var(--ds-primary-container) 30%, transparent);
 }

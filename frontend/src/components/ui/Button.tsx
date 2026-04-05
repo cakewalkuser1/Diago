@@ -1,7 +1,7 @@
 import { type ButtonHTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
-type Variant = "default" | "primary" | "danger" | "ghost" | "green" | "red";
+type Variant = "default" | "primary" | "secondary" | "danger" | "ghost" | "green" | "red" | "orange";
 type Size = "sm" | "md" | "lg" | "xl";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -11,24 +11,28 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<Variant, string> = {
   default:
-    "bg-surface0 text-text hover:bg-surface1 border border-surface1",
+    "bg-surface0 text-text hover:bg-surface1",
   primary:
-    "bg-gradient-primary text-white hover:opacity-90 font-semibold",
+    "bg-gradient-primary text-white font-semibold hover:shadow-[0_0_22px_rgba(255,86,56,0.4)] active:scale-[0.98]",
+  secondary:
+    "bg-[var(--ds-secondary-dim)] text-[#0a0a0a] font-semibold hover:shadow-[0_0_22px_rgba(0,218,243,0.4)] active:scale-[0.98]",
   danger:
-    "bg-red text-crust hover:opacity-90 font-semibold",
+    "bg-red text-white font-semibold hover:opacity-90",
   ghost:
     "bg-transparent text-subtext hover:bg-surface0 hover:text-text",
   green:
-    "bg-green text-crust hover:opacity-90 font-semibold",
+    "bg-green text-[#0a0a0a] font-semibold hover:opacity-90",
   red:
-    "bg-red text-crust hover:opacity-90 font-semibold",
+    "bg-red text-white font-semibold hover:opacity-90",
+  orange:
+    "bg-gradient-primary text-white font-semibold hover:shadow-[0_0_22px_rgba(255,86,56,0.4)] active:scale-[0.98]",
 };
 
 const sizeStyles: Record<Size, string> = {
-  sm: "px-2.5 py-1 text-xs rounded-lg",
+  sm: "px-3 py-1.5 text-xs rounded-lg",
   md: "px-4 py-2 text-sm rounded-lg",
-  lg: "px-6 py-2.5 text-base rounded-lg",
-  xl: "px-8 py-4 text-lg rounded-xl",
+  lg: "px-6 py-2.5 text-sm rounded-lg",
+  xl: "px-7 py-3.5 text-base rounded-xl",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -36,9 +40,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={cn(
-        "inline-flex items-center justify-center gap-2 font-medium transition-all duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-        "disabled:opacity-50 disabled:pointer-events-none cursor-pointer",
+        "inline-flex items-center justify-center gap-2 font-medium transition-all duration-200",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ds-primary-container)]/50",
+        "disabled:opacity-40 disabled:pointer-events-none cursor-pointer",
         variantStyles[variant],
         sizeStyles[size],
         className

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Car, AlertTriangle, Loader2, FileText, CheckCircle2 } from "lucide-react";
+import { Car, AlertTriangle, Loader2, FileText, CheckCircle2, BookOpen } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
-import { decodeVin, getRecalls, searchTsbs } from "@/lib/api";
+import { decodeVin, getRecalls, searchTsbs, getManualUrl } from "@/lib/api";
 import { useAppStore } from "@/stores/appStore";
 import type { VinDecodeResult, RecallsResult } from "@/types";
 
@@ -73,6 +73,16 @@ export function VehiclePanel() {
 
   const vehicleLabel = [year, make, model].filter(Boolean).join(" ");
   const showRecallsTsbs = Boolean(make && model);
+  const canOpenManual = Boolean(make);
+
+  const handleOpenManual = () => {
+    const yr = year != null && !isNaN(year) ? year : undefined;
+    getManualUrl(yr != null ? { make, model_year: yr } : { make })
+      .then((res) => {
+        if (res.url) window.open(res.url, "_blank", "noopener,noreferrer");
+      })
+      .catch(() => {});
+  };
 
   return (
     <SectionCard
@@ -85,10 +95,24 @@ export function VehiclePanel() {
     >
       <div className="space-y-4">
         {hasStoredVehicle && (
-          <p className="text-sm text-text font-medium">
-            Your vehicle: {vehicleLabel}
-            {trimDisplay && ` – ${trimDisplay}`}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-text font-medium">
+              Your vehicle: {vehicleLabel}
+              {trimDisplay && ` – ${trimDisplay}`}
+            </p>
+            {canOpenManual && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleOpenManual}
+                className="shrink-0 flex items-center gap-1.5"
+                title="Open repair manual for this make/year on charm.li (1982–2013)"
+              >
+                <BookOpen size={14} />
+                View service manual
+              </Button>
+            )}
+          </div>
         )}
         <div className="flex flex-col sm:flex-row gap-2">
           <input

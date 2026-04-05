@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from api.deps import get_db_manager
 from api.services import nhtsa as nhtsa_service
+from api.services import charm_li as charm_li_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -87,6 +88,14 @@ class SelectedVehicleResponse(BaseModel):
     make: str = ""
     model: str = ""
     submodel: str = ""
+
+
+class ManualUrlResponse(BaseModel):
+    """charm.li (Operation CHARM) service manual URL for the vehicle; open in browser."""
+    url: str | None = None
+    make: str = ""
+    model_year: int | None = None
+    message: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -213,3 +222,30 @@ async def set_selected_vehicle(payload: SelectedVehicleResponse):
         model=payload.model or "",
         submodel=payload.submodel or "",
     )
+
+
+@router.get("/manual-url", response_model=ManualUrlResponse)
+async def get_manual_url(
+    make: str | None = Query(None, description="Make (e.g. Honda). If omitted, uses selected vehicle."),
+    model_year: int | None = Query(None, ge=1982, le=2013, description="Model year. If omitted, uses selected vehicle."),
+):
+    """
+    Return the charm.li (Operation CHARM) service manual URL for this vehicle.
+    Open in browser to browse repair manuals (1982–2013). No local hosting required.
+    """
+    use_make = make
+    use_year = model_year
+    if use_make is None or use_year is None:
+        db = get_db_manager()
+        row = db.get_selected_vehicle()
+        if row:
+            if use_make is None:
+                use_make = (row.get("make") or "").strip()
+            if use_year is None:
+                use_year = row.get("model_year")
+    if not use_make:
+        return ManualUrlResponse(message="Set a vehicle or pass make= and model_year= to get a manual link.")
+    url = charm_li_service.get_manual_url(use_make, use_year)
+    if not url:
+        return ManualUrlResponse(make=use_make, model_year=use_year, message="Make not found on charm.li.")
+    return ManualUrlResponse(url=url, make=use_make, model_year=use_year, message="Open in browser.")

@@ -240,3 +240,33 @@ export interface TSBSearchResult {
 /* ─── View Modes ─── */
 export type ViewMode = "spectrogram" | "mel" | "waveform";
 export type RecordDuration = "manual" | "3" | "5" | "10" | "15" | "30" | "60";
+
+/* ─── Dispatch (diagnostics -> parts -> mechanic) ─── */
+export interface DispatchPartRetailer {
+  id: string;
+  name: string;
+  distance_mi: number;
+  store_id: string;
+}
+
+export interface DispatchMechanic {
+  id: number;
+  name: string;
+  distance_mi: number;
+  availability: string;
+  rating?: number | null;
+}
+
+export interface DispatchResponse {
+  thread_id: string;
+  diagnosis_result?: { top_class: string; confidence: string; class_scores?: Record<string, number> };
+  diagnosis_summary?: string;
+  suggested_parts?: { name: string }[];
+  part_retailers?: DispatchPartRetailer[];
+  mechanic_list?: DispatchMechanic[];
+  job_id?: number;
+  job_status?: string;
+  current_step: string;
+  prompt_for_user: string;
+  error?: string;
+}

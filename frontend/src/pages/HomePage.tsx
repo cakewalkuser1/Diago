@@ -1,22 +1,37 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Activity, Car, History } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Car, Stethoscope, Zap, Wrench, Building2, ChevronRight, Mic, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
-import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { Header } from "@/components/layout/Header";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { PersonaSelector } from "@/components/onboarding/PersonaSelector";
 import { usePersona } from "@/contexts/PersonaContext";
-import { listSessions, getVehicleYears, getVehicleMakes, getVehicleModels, saveSelectedVehicle } from "@/lib/api";
-import { formatTimestamp, formatDuration } from "@/lib/utils";
+import { getVehicleYears, getVehicleMakes, getVehicleModels, saveSelectedVehicle } from "@/lib/api";
 import { useAppStore } from "@/stores/appStore";
-import type { Session } from "@/types";
 
 const YEAR_PLACEHOLDER = "Year";
 const MAKE_PLACEHOLDER = "Make";
 const MODEL_PLACEHOLDER = "Model";
+
+const HOW_IT_WORKS = [
+  {
+    icon: Mic,
+    title: "Describe your problem",
+    description: "Tell us your symptoms, scan codes, or record the engine sound — text or voice.",
+  },
+  {
+    icon: Zap,
+    title: "AI diagnoses instantly",
+    description: "Physics-aware reasoning maps your symptoms to ranked failure modes in seconds.",
+  },
+  {
+    icon: Wrench,
+    title: "Fix it or find help",
+    description: "Get step-by-step repair guidance or connect directly with a certified mechanic.",
+  },
+];
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -26,11 +41,8 @@ export function HomePage() {
   const [makeId, setMakeId] = useState<string>("");
   const [modelId, setModelId] = useState<string>("");
   const [trim, setTrim] = useState<string>("");
+  const [vehicleExpanded, setVehicleExpanded] = useState(false);
 
-  const sessions = useQuery({
-    queryKey: ["sessions"],
-    queryFn: () => listSessions(5),
-  });
   const yearsQuery = useQuery({
     queryKey: ["vehicle", "years"],
     queryFn: () => getVehicleYears(),
@@ -70,6 +82,11 @@ export function HomePage() {
   const selectedMake = makeOptions.find((o) => o.value === makeId);
   const selectedModel = modelOptions.find((o) => o.value === modelId);
 
+  useEffect(() => {
+    const validValues = new Set(modelOptions.map((o) => o.value));
+    if (modelId && !validValues.has(modelId)) setModelId("");
+  }, [modelOptions, modelId]);
+
   const onStartDiagnosis = async () => {
     const makeName = selectedMake?.label ?? "";
     const modelName = selectedModel?.label ?? "";
@@ -92,26 +109,41 @@ export function HomePage() {
           submodel: trimVal,
         });
       } catch {
-        // non-blocking; store is already updated
+        // non-blocking
       }
     }
     navigate("/diagnose");
   };
 
+  /* ── Pre-persona: role selection ── */
   if (!hasSelectedPersona) {
     return (
-      <div className="h-full flex flex-col min-h-0">
+      <div className="h-full flex flex-col min-h-0 bg-base">
         <Header />
-        <main className="flex-1 overflow-y-auto flex items-center justify-center px-4 py-12">
-          <div className="w-full max-w-2xl space-y-8">
+        <main className="flex-1 overflow-y-auto flex items-center justify-center px-4 py-12 relative">
+          {/* Ambient glow */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div
+              className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] rounded-full blur-[140px] glow-pulse"
+              style={{ background: "radial-gradient(ellipse, rgba(255,86,56,0.07) 0%, transparent 70%)" }}
+            />
+          </div>
+          <div className="relative w-full max-w-2xl space-y-10">
             <section className="text-center space-y-3">
-              <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-primary/10 mb-2">
-                <Activity size={40} className="text-primary" />
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface0 text-xs text-subtext mb-2">
+                <span
+                  className="w-1.5 h-1.5 rounded-full ai-pulse"
+                  style={{ background: "var(--ds-secondary-dim)" }}
+                />
+                AI Diagnostic Engine
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-text">Diago</h1>
-              <p className="text-subtext text-sm sm:text-base">
-                Physics-aware automotive diagnostics
-              </p>
+              <h1
+                className="hero-headline text-text"
+                style={{ fontFamily: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif' }}
+              >
+                Autopilot
+              </h1>
+              <p className="hero-sub">Choose how you'll use diagnostics</p>
             </section>
             <PersonaSelector />
           </div>
@@ -121,134 +153,198 @@ export function HomePage() {
     );
   }
 
+  /* ── Main landing ── */
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div className="h-full flex flex-col min-h-0 bg-base">
       <Header />
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12 space-y-8">
-          {/* Hero */}
-          <section className="text-center space-y-3">
-            <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-primary/10 mb-2">
-              <Activity size={40} className="text-primary" />
+
+        {/* ── HERO ── */}
+        <section className="relative min-h-[60vh] flex items-center px-6 py-16 sm:py-24 overflow-hidden">
+          {/* Ambient glows */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div
+              className="absolute -top-20 left-0 w-[600px] h-[500px] rounded-full blur-[160px]"
+              style={{ background: "radial-gradient(ellipse, rgba(255,86,56,0.09) 0%, transparent 70%)" }}
+            />
+            <div
+              className="absolute bottom-0 right-0 w-[500px] h-[400px] rounded-full blur-[160px]"
+              style={{ background: "radial-gradient(ellipse, rgba(0,218,243,0.06) 0%, transparent 70%)" }}
+            />
+          </div>
+
+          <div className="relative z-10 max-w-3xl w-full mx-auto">
+            {/* AI badge */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface0 text-xs mb-6"
+              style={{ color: "var(--ds-secondary-dim)" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full ai-pulse" style={{ background: "var(--ds-secondary-dim)" }} />
+              AI Diagnostic Engine Active
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-text">
-              Diago
+
+            {/* Headline — asymmetric: left-aligned */}
+            <h1
+              className="hero-headline text-text mb-5"
+              style={{ fontFamily: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif' }}
+            >
+              Your car.<br />
+              <span style={{ color: "var(--ds-primary-container)" }}>Diagnosed.</span>
             </h1>
-            <p className="text-subtext text-sm sm:text-base">
-              Physics-aware automotive diagnostics
-            </p>
-            <p className="text-overlay0 text-xs sm:text-sm max-w-md mx-auto">
-              Record or describe symptoms, add OBD-II codes, decode your VIN, and get match results.
-            </p>
-          </section>
 
-          {/* Vehicle (year / make / model / trim) + Start diagnosis */}
-          <section className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-surface0/60 border border-surface1">
-              <p className="text-xs text-subtext sm:col-span-2">
-                Vehicle (optional — speeds up recalls & TSBs)
-              </p>
-              <Select
-                label="Year"
-                options={yearOptions}
-                value={year}
-                onChange={(e) => {
-                  setYear(e.target.value);
-                  setModelId("");
-                }}
-              />
-              <Select
-                label="Make"
-                options={makeOptions}
-                value={makeId}
-                onChange={(e) => {
-                  setMakeId(e.target.value);
-                  setModelId("");
-                }}
-              />
-              <Select
-                label="Model"
-                options={modelOptions}
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-                disabled={!year || !makeId}
-              />
-              <div className="sm:col-span-2 flex flex-col gap-1">
-                <label className="text-xs text-subtext">Submodel / trim</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Sport, Limited"
-                  value={trim}
-                  onChange={(e) => setTrim(e.target.value)}
-                  className="bg-surface0 text-text border border-surface1 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
-                />
-              </div>
+            <p className="hero-sub max-w-md mb-8">
+              Describe symptoms, scan codes, or record the sound.
+              Get physics-aware diagnostics and step-by-step repair guidance.
+            </p>
+
+            {/* CTAs */}
+            <div className="flex flex-wrap items-center gap-4 mb-10">
+              <Button variant="primary" size="xl" onClick={onStartDiagnosis}>
+                <Stethoscope size={18} />
+                Start Diagnosis
+              </Button>
+              <Link
+                to="/find-mechanic"
+                className="inline-flex items-center gap-1.5 text-sm text-subtext hover:text-text transition-colors"
+              >
+                <Search size={14} />
+                Find a mechanic
+                <ChevronRight size={14} className="opacity-50" />
+              </Link>
             </div>
-            <Button
-              variant="primary"
-              size="lg"
-              className="w-full"
-              onClick={onStartDiagnosis}
-            >
-              Next
-            </Button>
-            <Button
-              variant="default"
-              size="lg"
-              className="w-full"
-              onClick={() =>
-                navigate("/diagnose", { state: { focus: "vehicle" } })
-              }
-            >
-              <Car size={18} />
-              Decode VIN & recalls
-            </Button>
-          </section>
 
-          {/* Recent sessions */}
-          <SectionCard
-            title={
-              <span className="flex items-center gap-2">
-                <History size={16} className="text-primary" />
-                Recent sessions
-              </span>
-            }
-          >
-            {sessions.isLoading ? (
-              <p className="text-sm text-subtext">Loading…</p>
-            ) : !sessions.data?.length ? (
-              <p className="text-sm text-subtext">
-                No sessions yet. Run a diagnosis to see history.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {sessions.data.map((session: Session) => (
-                  <li
-                    key={session.id}
-                    className="flex items-center justify-between gap-3 py-2 border-b border-surface1 last:border-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm text-text truncate">
-                        {formatTimestamp(session.timestamp)}
-                      </p>
-                      <p className="text-xs text-overlay0">
-                        {formatDuration(session.duration_seconds)}
-                        {session.user_codes && ` · ${session.user_codes}`}
-                      </p>
+            {/* Vehicle selector — glassmorphism */}
+            <div className="max-w-xl">
+              <button
+                type="button"
+                onClick={() => setVehicleExpanded((v) => !v)}
+                className="flex items-center gap-2 text-sm text-subtext hover:text-text transition-colors mb-3"
+              >
+                <Car size={14} />
+                {vehicleExpanded ? "Hide vehicle" : "Add your vehicle for precise results"}
+                <ChevronRight
+                  size={14}
+                  className={`opacity-50 transition-transform duration-200 ${vehicleExpanded ? "rotate-90" : ""}`}
+                />
+              </button>
+              {vehicleExpanded && (
+                <div className="glass rounded-2xl p-5 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Select
+                      label="Year"
+                      options={yearOptions}
+                      value={year}
+                      onChange={(e) => { setYear(e.target.value); setModelId(""); }}
+                    />
+                    <Select
+                      label="Make"
+                      options={makeOptions}
+                      value={makeId}
+                      onChange={(e) => { setMakeId(e.target.value); setModelId(""); }}
+                    />
+                    <Select
+                      key={`model-${makeId}-${year}`}
+                      label="Model"
+                      options={modelOptions}
+                      value={modelId}
+                      onChange={(e) => setModelId(e.target.value)}
+                      disabled={!year || !makeId}
+                    />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-subtext">Submodel / trim</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Sport, Limited"
+                        value={trim}
+                        onChange={(e) => setTrim(e.target.value)}
+                        className="bg-surface0 text-text rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--ds-primary-container)]/40"
+                      />
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate("/diagnose")}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-subtext"
+                    onClick={() => navigate("/diagnose", { state: { focus: "vehicle" } })}
+                  >
+                    <Car size={13} />
+                    Decode VIN & recalls
+                    <ChevronRight size={13} className="opacity-50" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ── HOW IT WORKS ── */}
+        <section className="px-6 py-16 sm:py-20 bg-mantle/60">
+          <div className="max-w-4xl mx-auto">
+            <h2
+              className="section-headline text-text mb-3"
+              style={{ fontFamily: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif' }}
+            >
+              How it works
+            </h2>
+            <p className="hero-sub mb-12 max-w-md">Three steps from symptom to solution.</p>
+
+            <div className="grid sm:grid-cols-3 gap-8 relative">
+              {/* Dashed connector (desktop only) */}
+              <div
+                className="hidden sm:block absolute top-5 left-[calc(33%-12px)] right-[calc(33%-12px)] h-px"
+                style={{ borderTop: "1.5px dashed var(--ds-primary-container)", opacity: 0.3 }}
+              />
+              {HOW_IT_WORKS.map((step, i) => {
+                const Icon = step.icon;
+                return (
+                  <div key={i} className="relative space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                        style={{
+                          background: "var(--ds-gradient-primary)",
+                          fontFamily: '"Space Grotesk", ui-sans-serif',
+                        }}
+                      >
+                        {i + 1}
+                      </div>
+                      <Icon size={18} style={{ color: "var(--ds-secondary-dim)" }} />
+                    </div>
+                    <h3
+                      className="font-semibold text-text"
+                      style={{ fontFamily: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif' }}
                     >
-                      Open
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
-        </div>
+                      {step.title}
+                    </h3>
+                    <p className="text-sm text-subtext leading-relaxed">{step.description}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── ROLE PILLS ── */}
+        <section className="px-6 py-12 max-w-4xl mx-auto">
+          <div className="flex flex-wrap gap-3">
+            {[
+              { icon: Zap, label: "Quick Answer", sub: "60 seconds" },
+              { icon: Wrench, label: "D.I.Y Repair", sub: "Step-by-step" },
+              { icon: Building2, label: "Shop / Pro", sub: "Full data" },
+            ].map(({ icon: Icon, label, sub }) => (
+              <div
+                key={label}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface0 hover:bg-surface1 transition-colors cursor-default"
+              >
+                <Icon size={16} style={{ color: "var(--ds-secondary-dim)" }} />
+                <div>
+                  <p className="text-sm font-medium text-text leading-none">{label}</p>
+                  <p className="text-xs text-subtext mt-0.5">{sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
       </main>
       <StatusBar />
     </div>

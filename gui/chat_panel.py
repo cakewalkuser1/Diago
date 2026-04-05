@@ -462,7 +462,7 @@ class ChatPanel(QWidget):
             )
 
         # Check for trouble codes in the message
-        code_pattern = re.compile(r"\b[PBCU]\d{4}\b", re.IGNORECASE)
+        code_pattern = re.compile(r"\b[PBCU][0-9A-Fa-f]{4}\b", re.IGNORECASE)
         found_codes = code_pattern.findall(text)
 
         if found_codes and self._db_manager:

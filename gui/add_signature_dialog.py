@@ -43,7 +43,8 @@ CATEGORIES = [
     ("other", "Other"),
 ]
 
-DTC_PATTERN = re.compile(r"^[PBCU]\d{4}$", re.IGNORECASE)
+# OBD-II: P/B/C/U + 4 hex digits (e.g. P0300, P219A)
+DTC_PATTERN = re.compile(r"^[PBCU][0-9A-Fa-f]{4}$", re.IGNORECASE)
 
 
 class FingerprintThread(QThread):
@@ -399,7 +400,7 @@ class AddSignatureDialog(QDialog):
                     QMessageBox.warning(
                         self, "Invalid Code",
                         f"'{raw.strip()}' is not a valid OBD-II code.\n"
-                        f"Format: P/B/C/U + 4 digits (e.g., P0301)",
+                        f"Format: P/B/C/U + 4 hex digits (e.g. P0300, P219A)",
                     )
                     self.codes_input.setFocus()
                     return

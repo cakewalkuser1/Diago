@@ -46,6 +46,14 @@ class SubscriptionResponse(BaseModel):
 
 # ─── Endpoints ───
 
+@router.get("/config")
+async def get_payments_config():
+    """Return Stripe publishable key for frontend (public, no auth)."""
+    from core.config import get_settings
+    settings = get_settings()
+    return {"stripe_publishable_key": settings.stripe_publishable_key or ""}
+
+
 @router.post("/checkout", response_model=CheckoutResponse)
 async def create_checkout(
     request: CheckoutRequest,
@@ -141,6 +149,15 @@ async def stripe_webhook(request: Request):
                     get_db_manager().save_stripe_subscription_user(subscription_id, user_id)
                 except Exception as e:
                     logger.warning("Could not save subscription mapping: %s", e)
+
+        elif action == "part_payment_succeeded":
+            payment_intent_id = result.get("payment_intent_id")
+            if payment_intent_id:
+                try:
+                    from api.deps import get_db_manager
+                    get_db_manager().update_parts_order_paid(payment_intent_id)
+                except Exception as e:
+                    logger.warning("Could not update parts order paid: %s", e)
 
         elif action == "deactivate_subscription":
             subscription_id = result.get("subscription_id")

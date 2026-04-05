@@ -1,14 +1,36 @@
-import { AlertTriangle, ChevronRight } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, ChevronRight, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useAppStore } from "@/stores/appStore";
 import { usePersona } from "@/contexts/PersonaContext";
 import { toPlainEnglish, PLAIN_ENGLISH_CLASS_MAP, PLAIN_ENGLISH_FAILURE_MAP } from "@/lib/translations";
+import { getRepairGuidesForDiagnosis } from "@/lib/api";
 import type { RankedFailureMode } from "@/types";
 
 export function ResultsPanelPlain() {
   const diagnosis = useAppStore((s) => s.diagnosis);
+  const vehicleSelection = useAppStore((s) => s.vehicleSelection);
   const { setPersonaTier } = usePersona();
+
+  const repairGuides = useQuery({
+    queryKey: [
+      "repair-guides-plain",
+      vehicleSelection.makeName,
+      vehicleSelection.modelName,
+      vehicleSelection.year,
+      diagnosis?.top_class_display,
+    ],
+    queryFn: () =>
+      getRepairGuidesForDiagnosis({
+        make: vehicleSelection.makeName || undefined,
+        model: vehicleSelection.modelName || undefined,
+        year: vehicleSelection.year ?? undefined,
+        q: diagnosis?.top_class_display || diagnosis?.report_text?.slice(0, 100),
+        limit: 5,
+      }),
+    enabled: Boolean(diagnosis),
+  });
 
   if (!diagnosis) {
     return (
@@ -58,6 +80,29 @@ export function ResultsPanelPlain() {
               <li key={i} className="text-sm text-subtext flex items-start gap-2">
                 <ChevronRight size={14} className="shrink-0 mt-0.5 text-overlay0" />
                 {desc}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {repairGuides.data && repairGuides.data.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-text flex items-center gap-2">
+            <BookOpen size={16} className="text-[var(--color-secondary)]" />
+            Repair guidance
+          </h3>
+          <ul className="space-y-2">
+            {repairGuides.data.map((guide) => (
+              <li key={guide.id}>
+                <a
+                  href={guide.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline"
+                >
+                  {guide.title}
+                </a>
               </li>
             ))}
           </ul>

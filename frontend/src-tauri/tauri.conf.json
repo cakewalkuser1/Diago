@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Diago",
+  "productName": "Autopilot",
   "version": "0.1.0",
   "identifier": "com.autoaudiodiagnostics.diago",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Diago - Automotive Audio Diagnostics",
+        "title": "Autopilot - Automotive Audio Diagnostics",
         "width": 1200,
         "height": 800,
         "minWidth": 900,

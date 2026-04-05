@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -10,15 +11,48 @@ import {
   Gauge,
   Activity,
   FileEdit,
+  BookOpen,
+  MapPin,
+  Truck,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { usePersona } from "@/contexts/PersonaContext";
 import { confidenceColor, cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/appStore";
-import { confirmTest, createRepair } from "@/lib/api";
+import { confirmTest, createRepair, getRepairGuidesForDiagnosis, dispatchRun, dispatchContinue, geocodeAddress, createPartsOrder, getPaymentsConfig, exportDiagnosisPdf } from "@/lib/api";
+import { PartPaymentForm } from "@/components/PartPaymentForm";
+
+/** Wrapper that loads Stripe and renders Elements + PartPaymentForm */
+function PartPaymentFormWrapper({
+  clientSecret,
+  amountCents,
+  onSuccess,
+  onError,
+}: {
+  clientSecret: string;
+  amountCents: number;
+  onSuccess: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [stripePromise, setStripePromise] = useState<ReturnType<typeof loadStripe> | null>(null);
+  useEffect(() => {
+    getPaymentsConfig().then((c) => {
+      if (c.stripe_publishable_key) setStripePromise(loadStripe(c.stripe_publishable_key));
+    });
+  }, []);
+  if (!stripePromise) return <p className="text-sm text-subtext">Loading payment form…</p>;
+  return (
+    <Elements stripe={stripePromise} options={{ clientSecret }}>
+      <PartPaymentForm amountCents={amountCents} onSuccess={() => onSuccess()} onError={onError} />
+    </Elements>
+  );
+}
 
 /** Map tool names to Lucide icons for confirm tests */
 const TOOL_ICONS: Record<string, LucideIcon> = {
@@ -53,6 +87,11 @@ const PARTS_BY_CLASS: Record<string, string[]> = {
 export function ResultsPanel() {
   const diagnosis = useAppStore((s) => s.diagnosis);
   const setDiagnosis = useAppStore((s) => s.setDiagnosis);
+  const symptoms = useAppStore((s) => s.symptoms);
+  const activeCodes = useAppStore((s) => s.activeCodes);
+  const context = useAppStore((s) => s.context);
+  const dispatchResponse = useAppStore((s) => s.dispatchResponse);
+  const setDispatchResponse = useAppStore((s) => s.setDispatchResponse);
   const vehicleSelection = useAppStore((s) => s.vehicleSelection);
   const { personaTier, showTechnicalData } = usePersona();
   const [confirmingTestId, setConfirmingTestId] = useState<string | null>(null);
@@ -61,8 +100,40 @@ export function ResultsPanel() {
   const [repairParts, setRepairParts] = useState("");
   const [repairOutcome, setRepairOutcome] = useState("");
   const [repairSubmitting, setRepairSubmitting] = useState(false);
+  const [dispatchLoading, setDispatchLoading] = useState(false);
+  const [selectedPart, setSelectedPart] = useState<{ name: string } | null>(null);
+  const [selectedRetailerId, setSelectedRetailerId] = useState<string | null>(null);
+  const [selectedMechanicId, setSelectedMechanicId] = useState<number | null>(null);
+  const [userLatitude, setUserLatitude] = useState<number | null>(null);
+  const [userLongitude, setUserLongitude] = useState<number | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [addressInput, setAddressInput] = useState("");
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  const [paymentAmountCents, setPaymentAmountCents] = useState(0);
+  const [paymentStub, setPaymentStub] = useState(false);
   const showAllTechnical =
     personaTier === "enterprise" || (personaTier === "diy" && showTechnicalData);
+
+  const repairGuides = useQuery({
+    queryKey: [
+      "repair-guides",
+      vehicleSelection.makeName,
+      vehicleSelection.modelName,
+      vehicleSelection.year,
+      diagnosis?.top_class_display,
+    ],
+    queryFn: () =>
+      getRepairGuidesForDiagnosis({
+        make: vehicleSelection.makeName || undefined,
+        model: vehicleSelection.modelName || undefined,
+        year: vehicleSelection.year ?? undefined,
+        q: diagnosis?.top_class_display || diagnosis?.report_text?.slice(0, 100),
+        limit: 5,
+      }),
+    enabled: Boolean(diagnosis),
+  });
 
   if (!diagnosis) {
     return (
@@ -94,6 +165,39 @@ export function ResultsPanel() {
     a.download = `diago_report_${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportPdf = async () => {
+    const vehicleLabel = [
+      vehicleSelection.year,
+      vehicleSelection.makeName,
+      vehicleSelection.modelName,
+      vehicleSelection.trim,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    try {
+      const blob = await exportDiagnosisPdf({
+        top_class: diagnosis.top_class,
+        top_class_display: diagnosis.top_class_display,
+        confidence: diagnosis.confidence,
+        is_ambiguous: diagnosis.is_ambiguous,
+        report_text: diagnosis.report_text,
+        llm_narrative: diagnosis.llm_narrative,
+        class_scores: diagnosis.class_scores,
+        ranked_failure_modes: diagnosis.ranked_failure_modes,
+        symptoms,
+        vehicle: vehicleLabel || undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `diago-diagnosis-${Date.now()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* toast on error if desired */
+    }
   };
 
   const handleConfirmTest = async (testId: string, result: "pass" | "fail") => {
@@ -165,6 +269,36 @@ export function ResultsPanel() {
           ))}
         </ul>
       </div>
+
+      {/* Repair guidance (CarDiagn + charm.li) */}
+      {repairGuides.data && repairGuides.data.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-base font-semibold text-text flex items-center gap-2">
+            <BookOpen size={18} className="text-[var(--color-secondary)]" />
+            Repair guidance
+          </h3>
+          <ul className="space-y-2">
+            {repairGuides.data.map((guide) => (
+              <li key={guide.id}>
+                <a
+                  href={guide.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline flex items-center gap-1.5"
+                >
+                  {guide.title}
+                  {guide.source && (
+                    <span className="text-[10px] text-overlay0">({guide.source})</span>
+                  )}
+                </a>
+                {guide.summary && (
+                  <p className="text-xs text-subtext mt-0.5 pl-5">{guide.summary}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Ranked failure modes (master-tech pattern layer) */}
       {diagnosis.ranked_failure_modes && diagnosis.ranked_failure_modes.length > 0 && (
@@ -335,6 +469,393 @@ export function ResultsPanel() {
         </div>
       </div>
 
+      {/* Get parts & find mechanic (dispatch flow) */}
+      <div className="space-y-3 rounded-lg p-4 border border-surface1 bg-surface0">
+        <h4 className="text-sm font-semibold text-text flex items-center gap-2">
+          <Truck size={16} className="text-primary" />
+          Get parts & find mechanic
+        </h4>
+        {!dispatchResponse ? (
+          <div>
+            <p className="text-sm text-subtext mb-2">
+              Order a part from a local retailer and have a mobile mechanic pick it up and come to you.
+            </p>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={dispatchLoading}
+              onClick={async () => {
+                setDispatchLoading(true);
+                try {
+                  const res = await dispatchRun({
+                    symptoms,
+                    codes: activeCodes,
+                    behavioral_context: context as unknown as Record<string, unknown>,
+                  });
+                  setDispatchResponse(res);
+                } catch (e) {
+                  console.error("Dispatch run failed", e);
+                } finally {
+                  setDispatchLoading(false);
+                }
+              }}
+            >
+              {dispatchLoading ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
+              {dispatchLoading ? "Starting…" : "Get parts"}
+            </Button>
+          </div>
+        ) : dispatchResponse.current_step === "awaiting_get_parts" ? (
+          <div>
+            <p className="text-sm text-subtext mb-2">{dispatchResponse.prompt_for_user}</p>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={dispatchLoading || !dispatchResponse.thread_id}
+              onClick={async () => {
+                if (!dispatchResponse.thread_id) return;
+                setDispatchLoading(true);
+                try {
+                  const res = await dispatchContinue({
+                    thread_id: dispatchResponse.thread_id,
+                    action: "get_parts",
+                  });
+                  setDispatchResponse(res);
+                } catch (e) {
+                  console.error("Dispatch continue failed", e);
+                } finally {
+                  setDispatchLoading(false);
+                }
+              }}
+            >
+              {dispatchLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+              {dispatchLoading ? "Loading…" : "Show parts & retailers"}
+            </Button>
+          </div>
+        ) : (dispatchResponse.part_retailers?.length ?? 0) > 0 &&
+          dispatchResponse.current_step !== "awaiting_mechanic_selection" &&
+          dispatchResponse.current_step !== "awaiting_mechanic_response" &&
+          dispatchResponse.current_step !== "dispatched" &&
+          dispatchResponse.current_step !== "no_mechanic_accepted" ? (
+          <div className="space-y-3">
+            <p className="text-sm text-subtext">{dispatchResponse.prompt_for_user}</p>
+            <div>
+              <p className="text-xs font-medium text-text mb-1">Pick a part</p>
+              <ul className="flex flex-wrap gap-1.5 mb-2">
+                {(dispatchResponse.suggested_parts ?? []).map((p) => (
+                  <li key={p.name}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPart(p)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-sm border",
+                        selectedPart?.name === p.name
+                          ? "bg-primary/20 border-primary text-text"
+                          : "bg-mantle border-surface1 text-subtext hover:text-text"
+                      )}
+                    >
+                      {p.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-text mb-1">Pick a retailer (local first)</p>
+              <ul className="space-y-1">
+                {(dispatchResponse.part_retailers ?? []).map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRetailerId(r.id)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-md text-sm border flex items-center justify-between",
+                        selectedRetailerId === r.id
+                          ? "bg-primary/20 border-primary text-text"
+                          : "bg-mantle border-surface1 text-subtext hover:text-text"
+                      )}
+                    >
+                      <span>{r.name}</span>
+                      <span className="text-xs text-overlay0">{r.distance_mi} mi</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-text mb-1">Your location (for nearby mechanics)</p>
+              <p className="text-xs text-subtext mb-2">Use geolocation or enter an address to find mechanics near you.</p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={locationLoading}
+                  onClick={async () => {
+                    setLocationLoading(true);
+                    setLocationError(null);
+                    try {
+                      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+                      });
+                      setUserLatitude(pos.coords.latitude);
+                      setUserLongitude(pos.coords.longitude);
+                    } catch (e) {
+                      setLocationError(e instanceof Error ? e.message : "Location unavailable");
+                    } finally {
+                      setLocationLoading(false);
+                    }
+                  }}
+                >
+                  {locationLoading ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+                  {locationLoading ? "Getting…" : "Use my location"}
+                </Button>
+                <div className="flex gap-1 flex-1 min-w-0">
+                  <input
+                    type="text"
+                    placeholder="Or enter address"
+                    value={addressInput}
+                    onChange={(e) => setAddressInput(e.target.value)}
+                    className="flex-1 min-w-0 px-2 py-1.5 rounded-md text-sm bg-mantle border border-surface1 text-text placeholder:text-overlay1"
+                  />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={locationLoading || !addressInput.trim()}
+                    onClick={async () => {
+                      if (!addressInput.trim()) return;
+                      setLocationLoading(true);
+                      setLocationError(null);
+                      try {
+                        const res = await geocodeAddress(addressInput.trim());
+                        setUserLatitude(res.latitude);
+                        setUserLongitude(res.longitude);
+                      } catch (e) {
+                        setLocationError(e instanceof Error ? e.message : "Address not found");
+                      } finally {
+                        setLocationLoading(false);
+                      }
+                    }}
+                  >
+                    {locationLoading ? <Loader2 size={14} className="animate-spin" /> : "Find"}
+                  </Button>
+                </div>
+              </div>
+              {(userLatitude != null && userLongitude != null) && (
+                <p className="text-xs text-green">Location set: {userLatitude.toFixed(4)}, {userLongitude.toFixed(4)}</p>
+              )}
+              {locationError && <p className="text-xs text-red">{locationError}</p>}
+            </div>
+            {!paymentClientSecret && !paymentStub ? (
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={dispatchLoading || !selectedPart || !selectedRetailerId || !dispatchResponse.thread_id}
+                onClick={async () => {
+                  if (!dispatchResponse.thread_id || !selectedPart || !selectedRetailerId) return;
+                  const retailer = dispatchResponse.part_retailers?.find((r) => r.id === selectedRetailerId);
+                  if (!retailer) return;
+                  setDispatchLoading(true);
+                  try {
+                    const orderRes = await createPartsOrder({
+                      thread_id: dispatchResponse.thread_id,
+                      part: selectedPart,
+                      retailer_id: retailer.id,
+                      retailer_name: retailer.name,
+                      retailer_store_id: retailer.store_id ?? retailer.id,
+                    });
+                    if (orderRes.stub) {
+                      setPaymentIntentId("stub");
+                      setPaymentStub(true);
+                    } else {
+                      setPaymentClientSecret(orderRes.client_secret ?? null);
+                      setPaymentIntentId(orderRes.payment_intent_id);
+                      setPaymentAmountCents(orderRes.amount_cents ?? 0);
+                    }
+                  } catch (e) {
+                    console.error("Create parts order failed", e);
+                  } finally {
+                    setDispatchLoading(false);
+                  }
+                }}
+              >
+                {dispatchLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                {dispatchLoading ? "Creating…" : "Proceed to payment"}
+              </Button>
+            ) : paymentStub && paymentIntentId ? (
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={dispatchLoading || !dispatchResponse.thread_id}
+                onClick={async () => {
+                  if (!dispatchResponse.thread_id || !selectedPart) return;
+                  setDispatchLoading(true);
+                  try {
+                    const res = await dispatchContinue({
+                      thread_id: dispatchResponse.thread_id,
+                      action: "part_selected",
+                      selected_part: selectedPart,
+                      payment_intent_id: paymentIntentId,
+                      user_latitude: userLatitude ?? undefined,
+                      user_longitude: userLongitude ?? undefined,
+                    });
+                    setDispatchResponse(res);
+                  } catch (e) {
+                    console.error("Dispatch continue failed", e);
+                  } finally {
+                    setDispatchLoading(false);
+                  }
+                }}
+              >
+                {dispatchLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                {dispatchLoading ? "Confirming…" : "Confirm & pay"}
+              </Button>
+            ) : paymentClientSecret && paymentIntentId ? (
+              <div className="rounded-lg p-3 border border-surface1 bg-mantle">
+                <PartPaymentFormWrapper
+                  clientSecret={paymentClientSecret}
+                  amountCents={paymentAmountCents}
+                  onSuccess={async () => {
+                    if (!dispatchResponse.thread_id || !selectedPart) return;
+                    setDispatchLoading(true);
+                    try {
+                      const res = await dispatchContinue({
+                        thread_id: dispatchResponse.thread_id,
+                        action: "part_selected",
+                        selected_part: selectedPart,
+                        payment_intent_id: paymentIntentId,
+                        user_latitude: userLatitude ?? undefined,
+                        user_longitude: userLongitude ?? undefined,
+                      });
+                      setDispatchResponse(res);
+                    } catch (e) {
+                      console.error("Dispatch continue failed", e);
+                    } finally {
+                      setDispatchLoading(false);
+                    }
+                  }}
+                  onError={(msg) => console.error("Payment error:", msg)}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : dispatchResponse.current_step === "awaiting_stock_confirmation" ? (
+          <div className="space-y-3">
+            <p className="text-sm text-subtext">{dispatchResponse.prompt_for_user}</p>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={dispatchLoading || !dispatchResponse.thread_id}
+              onClick={async () => {
+                if (!dispatchResponse.thread_id) return;
+                setDispatchLoading(true);
+                try {
+                  const res = await dispatchContinue({
+                    thread_id: dispatchResponse.thread_id,
+                    action: "stock_confirmed",
+                  });
+                  setDispatchResponse(res);
+                } catch (e) {
+                  console.error("Dispatch continue failed", e);
+                } finally {
+                  setDispatchLoading(false);
+                }
+              }}
+            >
+              {dispatchLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+              {dispatchLoading ? "Loading…" : "I confirmed it's in stock"}
+            </Button>
+          </div>
+        ) : (dispatchResponse.mechanic_list?.length ?? 0) > 0 &&
+          dispatchResponse.current_step === "awaiting_mechanic_selection" ? (
+          <div className="space-y-3">
+            <p className="text-sm text-subtext">{dispatchResponse.prompt_for_user}</p>
+            <ul className="space-y-2">
+              {(dispatchResponse.mechanic_list ?? []).map((m) => (
+                <li key={m.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMechanicId(m.id)}
+                    className={cn(
+                      "w-full text-left px-3 py-2 rounded-md text-sm border flex items-center justify-between",
+                      selectedMechanicId === m.id
+                        ? "bg-primary/20 border-primary text-text"
+                        : "bg-mantle border-surface1 text-subtext hover:text-text"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <MapPin size={14} className="text-overlay0" />
+                      {m.name}
+                    </span>
+                    <span className="text-xs text-overlay0">{m.distance_mi} mi · {m.availability}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={dispatchLoading || selectedMechanicId === null || !dispatchResponse.thread_id}
+              onClick={async () => {
+                if (!dispatchResponse.thread_id || selectedMechanicId === null) return;
+                setDispatchLoading(true);
+                try {
+                  const res = await dispatchContinue({
+                    thread_id: dispatchResponse.thread_id,
+                    action: "mechanic_selected",
+                    selected_mechanic_id: selectedMechanicId,
+                  });
+                  setDispatchResponse(res);
+                } catch (e) {
+                  console.error("Dispatch continue failed", e);
+                } finally {
+                  setDispatchLoading(false);
+                }
+              }}
+            >
+              {dispatchLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+              {dispatchLoading ? "Sending…" : "Send job to mechanic"}
+            </Button>
+          </div>
+        ) : dispatchResponse.current_step === "awaiting_mechanic_response" ? (
+          <div className="space-y-3">
+            <p className="text-sm text-subtext">{dispatchResponse.prompt_for_user}</p>
+            <p className="text-sm text-green">Mechanic has been notified. Waiting for their response.</p>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={dispatchLoading || !dispatchResponse.thread_id}
+              onClick={async () => {
+                if (!dispatchResponse.thread_id) return;
+                setDispatchLoading(true);
+                try {
+                  const res = await dispatchContinue({
+                    thread_id: dispatchResponse.thread_id,
+                    action: "mechanic_responded",
+                    mechanic_accepted: true,
+                  });
+                  setDispatchResponse(res);
+                } catch (e) {
+                  console.error("Dispatch continue failed", e);
+                } finally {
+                  setDispatchLoading(false);
+                }
+              }}
+            >
+              {dispatchLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+              Simulate mechanic accepted
+            </Button>
+          </div>
+        ) : dispatchResponse.current_step === "dispatched" ? (
+          <div className="text-sm text-green flex items-center gap-2">
+            <CheckCircle2 size={18} />
+            {dispatchResponse.prompt_for_user}
+          </div>
+        ) : dispatchResponse.current_step === "no_mechanic_accepted" ? (
+          <p className="text-sm text-subtext">{dispatchResponse.prompt_for_user}</p>
+        ) : (
+          <p className="text-sm text-subtext">{dispatchResponse.prompt_for_user}</p>
+        )}
+      </div>
+
       {/* Score Bars (detail) - hidden when technical data off for DIYer */}
       {showAllTechnical && (
       <div className="space-y-2">
@@ -415,7 +936,16 @@ export function ResultsPanel() {
           title="Ctrl+E"
         >
           <Download size={14} />
-          Export Report
+          Export TXT
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleExportPdf}
+          title="Export as PDF"
+        >
+          <Download size={14} />
+          Export PDF
         </Button>
         {isEnterprise && (
           <>

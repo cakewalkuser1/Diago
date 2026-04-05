@@ -25,8 +25,9 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 # ─── User Tiers ───
 class UserTier(str, Enum):
     FREE = "free"
-    PRO = "pro"
-    PREMIUM = "premium"
+    DIY = "diy"
+    PRO_MECHANIC = "pro_mechanic"
+    SHOP = "shop"
 
 
 class AuthenticatedUser(BaseModel):
@@ -131,7 +132,7 @@ def requires_tier(*allowed_tiers: UserTier):
 
     Usage:
         @router.get("/premium-feature")
-        async def premium(user: AuthenticatedUser = Depends(requires_tier(UserTier.PRO, UserTier.PREMIUM))):
+        async def premium(user: AuthenticatedUser = Depends(requires_tier(UserTier.DIY, UserTier.PRO_MECHANIC, UserTier.SHOP))):
             ...
     """
 
