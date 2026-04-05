@@ -44,7 +44,7 @@ export function PersistentDiagBot() {
         />
       )}
 
-      {/* Slide-out panel */}
+      {/* Slide-out panel — ChatPanel only mounts when open to avoid duplicate greeting */}
       <div
         className={cn(
           "fixed top-0 right-0 bottom-0 z-50 w-full max-w-md",
@@ -53,6 +53,7 @@ export function PersistentDiagBot() {
           "transition-transform duration-200 ease-out",
           open ? "translate-x-0" : "translate-x-full"
         )}
+        aria-hidden={!open}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-surface1)] shrink-0">
           <span className="text-sm font-semibold text-[var(--color-text)]">
@@ -68,7 +69,7 @@ export function PersistentDiagBot() {
           </button>
         </div>
         <div className="flex-1 min-h-0 flex flex-col">
-          <ChatPanel />
+          {open && <ChatPanel />}
         </div>
       </div>
     </>

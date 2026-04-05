@@ -94,6 +94,8 @@ def create_app() -> FastAPI:
     from api.routes.reviews import router as reviews_router
     from api.routes.notifications import router as notifications_router
     from api.routes.maintenance import router as maintenance_router
+    from api.routes.wiring import router as wiring_router
+    from api.routes.labor import router as labor_router
 
     # Register route modules
     app.include_router(diagnosis_router, prefix="/api/v1/diagnosis", tags=["Diagnosis"])
@@ -115,6 +117,8 @@ def create_app() -> FastAPI:
     app.include_router(reviews_router, prefix="/api/v1/reviews", tags=["Reviews"])
     app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
     app.include_router(maintenance_router, prefix="/api/v1/maintenance", tags=["Maintenance"])
+    app.include_router(wiring_router, prefix="/api/v1/wiring", tags=["Wiring Diagrams"])
+    app.include_router(labor_router, prefix="/api/v1/labor", tags=["Labor Times"])
 
     # Serve uploaded photos (diagnosis/chat)
     uploads_dir = settings.user_data_dir / "uploads"

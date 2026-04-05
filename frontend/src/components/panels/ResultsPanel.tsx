@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { usePersona } from "@/contexts/PersonaContext";
 import { confidenceColor, cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/appStore";
+import { useToastStore } from "@/stores/toastStore";
 import { confirmTest, createRepair, getRepairGuidesForDiagnosis, dispatchRun, dispatchContinue, geocodeAddress, createPartsOrder, getPaymentsConfig, exportDiagnosisPdf } from "@/lib/api";
 import { PartPaymentForm } from "@/components/PartPaymentForm";
 
@@ -37,7 +38,7 @@ function PartPaymentFormWrapper({
 }: {
   clientSecret: string;
   amountCents: number;
-  onSuccess: () => void;
+  onSuccess: (paymentIntentId: string) => void;
   onError: (msg: string) => void;
 }) {
   const [stripePromise, setStripePromise] = useState<ReturnType<typeof loadStripe> | null>(null);
@@ -49,7 +50,7 @@ function PartPaymentFormWrapper({
   if (!stripePromise) return <p className="text-sm text-subtext">Loading payment form…</p>;
   return (
     <Elements stripe={stripePromise} options={{ clientSecret }}>
-      <PartPaymentForm amountCents={amountCents} onSuccess={() => onSuccess()} onError={onError} />
+      <PartPaymentForm amountCents={amountCents} onSuccess={onSuccess} onError={onError} />
     </Elements>
   );
 }
@@ -94,6 +95,7 @@ export function ResultsPanel() {
   const setDispatchResponse = useAppStore((s) => s.setDispatchResponse);
   const vehicleSelection = useAppStore((s) => s.vehicleSelection);
   const { personaTier, showTechnicalData } = usePersona();
+  const toast = useToastStore((s) => s.show);
   const [confirmingTestId, setConfirmingTestId] = useState<string | null>(null);
   const [repairFormOpen, setRepairFormOpen] = useState(false);
   const [repairDesc, setRepairDesc] = useState("");
@@ -494,7 +496,7 @@ export function ResultsPanel() {
                   });
                   setDispatchResponse(res);
                 } catch (e) {
-                  console.error("Dispatch run failed", e);
+                  toast(e instanceof Error ? e.message : "Dispatch failed. Please try again.", "error");
                 } finally {
                   setDispatchLoading(false);
                 }
@@ -521,7 +523,7 @@ export function ResultsPanel() {
                   });
                   setDispatchResponse(res);
                 } catch (e) {
-                  console.error("Dispatch continue failed", e);
+                  toast(e instanceof Error ? e.message : "Action failed. Please try again.", "error");
                 } finally {
                   setDispatchLoading(false);
                 }
@@ -671,7 +673,7 @@ export function ResultsPanel() {
                       setPaymentAmountCents(orderRes.amount_cents ?? 0);
                     }
                   } catch (e) {
-                    console.error("Create parts order failed", e);
+                    toast(e instanceof Error ? e.message : "Could not create parts order.", "error");
                   } finally {
                     setDispatchLoading(false);
                   }
@@ -699,7 +701,7 @@ export function ResultsPanel() {
                     });
                     setDispatchResponse(res);
                   } catch (e) {
-                    console.error("Dispatch continue failed", e);
+                    toast(e instanceof Error ? e.message : "Action failed. Please try again.", "error");
                   } finally {
                     setDispatchLoading(false);
                   }
@@ -713,7 +715,7 @@ export function ResultsPanel() {
                 <PartPaymentFormWrapper
                   clientSecret={paymentClientSecret}
                   amountCents={paymentAmountCents}
-                  onSuccess={async () => {
+                  onSuccess={async (paidIntentId: string) => {
                     if (!dispatchResponse.thread_id || !selectedPart) return;
                     setDispatchLoading(true);
                     try {
@@ -721,18 +723,19 @@ export function ResultsPanel() {
                         thread_id: dispatchResponse.thread_id,
                         action: "part_selected",
                         selected_part: selectedPart,
+                        payment_intent_id: paidIntentId,
                         payment_intent_id: paymentIntentId,
                         user_latitude: userLatitude ?? undefined,
                         user_longitude: userLongitude ?? undefined,
                       });
                       setDispatchResponse(res);
                     } catch (e) {
-                      console.error("Dispatch continue failed", e);
+                      toast(e instanceof Error ? e.message : "Failed to continue dispatch", "error");
                     } finally {
                       setDispatchLoading(false);
                     }
                   }}
-                  onError={(msg) => console.error("Payment error:", msg)}
+                  onError={(msg) => toast(msg || "Payment failed. Please try again.", "error")}
                 />
               </div>
             ) : null}
@@ -754,7 +757,7 @@ export function ResultsPanel() {
                   });
                   setDispatchResponse(res);
                 } catch (e) {
-                  console.error("Dispatch continue failed", e);
+                  toast(e instanceof Error ? e.message : "Action failed. Please try again.", "error");
                 } finally {
                   setDispatchLoading(false);
                 }
@@ -805,7 +808,7 @@ export function ResultsPanel() {
                   });
                   setDispatchResponse(res);
                 } catch (e) {
-                  console.error("Dispatch continue failed", e);
+                  toast(e instanceof Error ? e.message : "Action failed. Please try again.", "error");
                 } finally {
                   setDispatchLoading(false);
                 }
@@ -834,7 +837,7 @@ export function ResultsPanel() {
                   });
                   setDispatchResponse(res);
                 } catch (e) {
-                  console.error("Dispatch continue failed", e);
+                  toast(e instanceof Error ? e.message : "Action failed. Please try again.", "error");
                 } finally {
                   setDispatchLoading(false);
                 }

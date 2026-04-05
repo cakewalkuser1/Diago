@@ -13,20 +13,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
-      },
-      "/mechanic": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
-      },
-      "/health": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
-      },
-      "/uploads": {
-        target: "http://127.0.0.1:8000",
+      // REST API — covers /api/v1/... and /health
+      "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      "/health": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      "/uploads": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      // WebSocket — live mechanic tracking
+      "/api/v1/tracking": {
+        target: "ws://127.0.0.1:8000",
+        ws: true,
         changeOrigin: true,
       },
     },

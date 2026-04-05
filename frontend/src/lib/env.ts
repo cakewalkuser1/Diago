@@ -10,8 +10,7 @@
 export const IS_TAURI = typeof window !== "undefined" && "__TAURI__" in window;
 
 export const IS_CAPACITOR =
-  typeof window !== "undefined" &&
-  window.location.protocol === "capacitor:" ||
+  (typeof window !== "undefined" && window.location.protocol === "capacitor:") ||
   (typeof navigator !== "undefined" && /android|iphone|ipad/i.test(navigator.userAgent) && !IS_TAURI);
 
 export const IS_DEV = import.meta.env.DEV;

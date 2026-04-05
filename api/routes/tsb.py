@@ -31,6 +31,14 @@ class TSBItem(BaseModel):
     summary: str = ""
     nhtsa_id: str = ""
     document_id: str = ""
+    # Extended fields (populated by fetch_nhtsa_recalls.py and insert_tsb_extended)
+    bulletin_date: str = ""
+    affected_mileage_range: str = ""
+    affected_codes: str = ""
+    document_url: str = ""
+    manufacturer_id: str = ""
+    severity: str = "medium"
+    source: str = "nhtsa"
     created_at: str = ""
 
 
@@ -73,11 +81,18 @@ async def search_tsbs(
             model_year=r["model_year"],
             make=r["make"],
             model=r["model"],
-            component=r["component"] or "",
-            summary=r["summary"] or "",
-            nhtsa_id=r["nhtsa_id"] or "",
-            document_id=r["document_id"] or "",
-            created_at=r["created_at"] or "",
+            component=r.get("component") or "",
+            summary=r.get("summary") or "",
+            nhtsa_id=r.get("nhtsa_id") or "",
+            document_id=r.get("document_id") or "",
+            bulletin_date=r.get("bulletin_date") or "",
+            affected_mileage_range=r.get("affected_mileage_range") or "",
+            affected_codes=r.get("affected_codes") or "",
+            document_url=r.get("document_url") or "",
+            manufacturer_id=r.get("manufacturer_id") or "",
+            severity=r.get("severity") or "medium",
+            source=r.get("source") or "nhtsa",
+            created_at=r.get("created_at") or "",
         )
         for r in rows
     ]
