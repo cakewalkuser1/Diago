@@ -81,6 +81,7 @@ export function RecordPanel() {
       mediaRecorderRef.current = mr;
       setIsRecording(true);
       setElapsed(0);
+      startTimeRef.current = Date.now();
 
       startTimeRef.current = Date.now();
       timerRef.current = setInterval(() => {

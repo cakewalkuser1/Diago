@@ -1,6 +1,32 @@
-# Diago — Automotive Audio Spectrogram Analyzer
+# Diago — Automotive AI Diagnostics + Service Marketplace
 
-A **web-first** application for automotive diagnostics that uses audio spectrogram analysis and digital fingerprinting to identify engine and vehicle faults, paired with OBD-II trouble codes. Desktop and mobile builds are planned for later.
+Diago is a **web-first, mobile-ready** platform for automotive diagnostics that combines:
+
+- **AI-assisted vehicle issue detection** (audio + OBD context)
+- **Service fulfillment workflows** (mobile mechanics today, extensible to towing/locksmith)
+- **Future enterprise/fleet analytics tiers**
+
+The product direction is to support:
+
+1. **Consumers** (diagnose and get help quickly)
+2. **Service providers** (mobile mechanics and partner providers)
+3. **Enterprise accounts** (shops/fleets with reporting and operational tooling)
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Architecture Overview](#architecture-overview)
+- [Requirements](#requirements)
+- [Quick Start (Web UI)](#quick-start-web-ui)
+- [Other Ways to Run](#other-ways-to-run)
+- [Workflow](#workflow)
+- [Project Structure](#project-structure)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
 
 ## Features
 
@@ -13,13 +39,38 @@ A **web-first** application for automotive diagnostics that uses audio spectrogr
 - **Session Management**: Save and review past analysis sessions
 - **Report Export**: Export diagnostic reports as text files
 
+## Architecture Overview
+
+Diago is currently delivered as a modular monorepo.
+
+```text
+Frontend (React + Vite)
+  -> calls FastAPI endpoints
+API (FastAPI service in api/)
+  -> orchestrates use-cases and auth/rate limiting
+Core (domain logic in core/)
+  -> performs diagnostics/fingerprinting/reasoning
+Database (database/)
+  -> persistence for signatures, sessions, and reference data
+```
+
+### Mobile-friendly direction
+
+The current implementation prioritizes web delivery while preserving a backend/API split that supports:
+
+- Android and iOS clients (future)
+- Potential service-provider apps
+- Future enterprise dashboards
+
+For deeper details, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Requirements
 
 - Python 3.10+
 - Node.js 18+ (for the web frontend)
 - FFmpeg (optional, for MP3 support via pydub)
 
-## Quick start (web UI)
+## Quick Start (Web UI)
 
 1. **Backend** — From the project root:
    ```bash
@@ -34,51 +85,65 @@ A **web-first** application for automotive diagnostics that uses audio spectrogr
    npm run dev
    ```
 
-3. Open **http://localhost:5173** in your browser. The app talks to the API at `http://127.0.0.1:8000` (Vite proxies in dev).
+3. Open **http://localhost:5173** in your browser.
 
-See [frontend/README.md](frontend/README.md) for more frontend options (build, preview). Copy `.env.example` to `.env` and set any optional keys (e.g. `CAR_API_KEY`) if you use external APIs.
+The app talks to the API at `http://127.0.0.1:8000` (Vite proxies in dev).
 
-**OBD2 / OBD code library:** The app ships with a merged dataset in `database/obd2_codes.json` (1,400+ codes from [OBDIICodes](https://github.com/fabiovila/OBDIICodes) plus the original SAE J2012–style entries with symptoms and mechanical classes). To refresh or re-download: `python -m database.scripts.download_and_merge_obd2_codes`. To use a different file, set `DIAGO_DB_OBD2_CODES_PATH` in `.env`. The database is seeded on first run (or when the table is empty).
+See [frontend/README.md](frontend/README.md) for frontend-specific options.
 
-## Other ways to run
+Copy `.env.example` to `.env` and set optional keys (e.g. `CAR_API_KEY`) for external integrations.
+
+## Other Ways to Run
 
 - **Legacy desktop (PyQt6):** `python main.py` — classic local UI, no API.
-- **Tauri desktop / mobile:** The React app can be packaged with Tauri or Capacitor when you’re ready to target desktop or mobile; for now we focus on the web UI.
+- **Tauri desktop / mobile:** The React app can be packaged with Tauri or Capacitor when ready to target desktop/mobile.
 
 ## Workflow
 
-1. **Record or Import** audio from the vehicle (engine running, driving, etc.)
-2. **Enter Trouble Codes** from your OBD-II scanner (e.g., P0301, P0420)
-3. Optionally **decode VIN** and review recalls and TSBs for context
-4. Click **Analyze & Match** to fingerprint the audio and compare against known fault signatures
-5. Review **Match Results** ranked by confidence percentage
-6. **Save Session** or **Export Report** for your records
+1. **Record or import** audio from the vehicle
+2. **Enter trouble codes** from an OBD-II scanner
+3. Optionally **decode VIN** and review recalls/TSBs
+4. Click **Analyze & Match** to compare against known signatures
+5. Review **ranked results** and confidence
+6. **Save session** or **export report**
 
-## Project structure
+## Project Structure
 
-```
-api/                    - FastAPI service (primary backend for web)
-  main.py               - App entry, CORS, routers
-  routes/               - vehicle, codes, tsb, diagnosis, sessions, etc.
-  services/             - NHTSA, Car API clients
-core/                   - Shared engine (no GUI)
-  config.py             - Settings (env, paths, API keys)
+```text
+api/                    FastAPI service (primary backend for web)
+  main.py               App entry, CORS, routers
+  routes/               vehicle, codes, tsb, diagnosis, sessions, etc.
+  services/             external integrations
+core/                   Shared diagnostic engine (no GUI)
+  config.py             Settings (env, paths, API keys)
   audio_io.py, spectrogram.py, fingerprint.py, matcher.py
-database/               - SQLite (signatures, sessions, TSBs)
-frontend/               - React + TypeScript + Vite (web UI)
-main.py                 - Legacy PyQt6 desktop entry
-gui/                    - Legacy PyQt6 UI
+database/               SQLite data, schema, seed scripts, reference datasets
+frontend/               React + TypeScript + Vite (web UI)
+main.py                 Legacy PyQt6 desktop entry
+gui/                    Legacy PyQt6 UI components
+scripts/                Setup and utility scripts
+tests/                  Automated tests
 ```
 
-## Seed fault signatures
+## Testing
 
-| Code Range   | Fault Type                        |
-|-------------|-----------------------------------|
-| P0300-P0312 | Engine misfire patterns           |
-| P0171/P0174 | Vacuum/intake leak hiss           |
-| P0420       | Catalytic converter / exhaust     |
-| P0500-series| Wheel bearing hum                 |
-| —           | Belt squeal / alternator whine    |
+Run tests from the project root:
+
+```bash
+pytest -q
+```
+
+> If tests fail due to missing local dependencies, install from `requirements.txt` first.
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening issues or pull requests.
+
+By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+For vulnerability reporting and security posture notes, see [SECURITY.md](SECURITY.md).
 
 ## License
 

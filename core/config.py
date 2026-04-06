@@ -62,7 +62,7 @@ class AudioSettings(BaseSettings):
 
 class LLMSettings(BaseSettings):
     """LLM reasoning module configuration."""
-    model_config = SettingsConfigDict(env_prefix="")
+    model_config = SettingsConfigDict(env_prefix="", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     llm_enabled: bool = Field(default=False, alias="LLM_ENABLED")
     llm_provider: Optional[str] = Field(default=None, alias="LLM_PROVIDER")
@@ -84,7 +84,7 @@ class LLMSettings(BaseSettings):
 
 class AgentSettings(BaseSettings):
     """Mechanic Agent configuration."""
-    model_config = SettingsConfigDict(env_prefix="")
+    model_config = SettingsConfigDict(env_prefix="", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     agent_enabled: bool = Field(default=False, alias="AGENT_ENABLED")
     agent_llm_provider: Optional[str] = Field(default=None, alias="MECHANIC_LLM_PROVIDER")

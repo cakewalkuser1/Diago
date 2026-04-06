@@ -21,10 +21,8 @@ const queryClient = new QueryClient({
   },
 });
 
-/** Inner shell — has access to providers so it can call hooks. */
 function AppShell() {
   const initialize = useAuthStore((s) => s.initialize);
-  // Initialize Supabase session once on mount (no-op when auth is disabled).
   useEffect(() => { initialize(); }, [initialize]);
 
   return (

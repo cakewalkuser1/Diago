@@ -79,11 +79,13 @@ def _build_system_prompt(ctx: ChatContext | None, rag_suffix: str = "") -> str:
 def _ollama_reachable() -> bool:
     settings = get_settings().llm
     url = f"{settings.ollama_url.rstrip('/')}/api/tags"
+    logger.debug("Checking Ollama reachability at %s (model=%s)", url, settings.ollama_model)
     try:
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=2) as _:
+        with urllib.request.urlopen(req, timeout=5) as _:
             return True
-    except Exception:
+    except Exception as e:
+        logger.warning("Ollama not reachable at %s: %s", url, e)
         return False
 
 
@@ -175,6 +177,11 @@ def _stream_ollama(messages: list[dict], system_prompt: str):
                         continue
                     try:
                         obj = json.loads(line)
+                        # Ollama returns {"error": "..."} when the model isn't found
+                        if "error" in obj:
+                            logger.warning("Ollama error: %s", obj["error"])
+                            yield f"[Ollama error: {obj['error']}]", True
+                            return
                         token = obj.get("message", {}).get("content", "") or obj.get("response", "")
                         done = obj.get("done", False)
                         if token:
@@ -184,8 +191,8 @@ def _stream_ollama(messages: list[dict], system_prompt: str):
                     except json.JSONDecodeError:
                         continue
     except Exception as e:
-        logger.debug("Ollama stream not used: %s", e)
-        yield ""
+        logger.warning("Ollama stream failed: %s", e)
+        yield f"[Stream error: {e}]", True
 
 
 # ---------------------------------------------------------------------------

@@ -25,6 +25,10 @@ const COMMON_SERVICES = [
   "Serpentine belt replacement",
   "Battery replacement",
   "Wheel alignment",
+  "Oil & filter change", "Tire rotation", "Brake inspection",
+  "Air filter replacement", "Cabin air filter replacement",
+  "Spark plug replacement", "Coolant flush", "Transmission fluid service",
+  "Brake fluid flush", "Serpentine belt replacement", "Battery replacement", "Wheel alignment",
 ];
 
 export function MaintenancePage() {
@@ -34,6 +38,31 @@ export function MaintenancePage() {
   const qc = useQueryClient();
   const [currentMileage, setCurrentMileage] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [formService, setFormService] = useState("");
+  const [formMileage, setFormMileage] = useState("");
+  const [formDate, setFormDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [formNextMileage, setFormNextMileage] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const addRecord = useMutation({
+    mutationFn: () => createMaintenanceRecord({
+      service_type: formService.trim(),
+      mileage: formMileage ? parseInt(formMileage, 10) : undefined,
+      performed_at: formDate || undefined,
+      next_due_mileage: formNextMileage ? parseInt(formNextMileage, 10) : undefined,
+      notes: formNotes.trim() || undefined,
+      vehicle_make: vehicleSelection.makeName || undefined,
+      vehicle_model: vehicleSelection.modelName || undefined,
+      vehicle_year: vehicleSelection.year ? parseInt(vehicleSelection.year, 10) : undefined,
+    }, userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["maintenance-records", userId] });
+      setShowForm(false);
+      setFormService(""); setFormMileage(""); setFormNextMileage(""); setFormNotes(""); setFormError(null);
+    },
+    onError: (e: unknown) => setFormError(e instanceof Error ? e.message : "Failed to save record"),
+  });
 
   // Form state
   const [formService, setFormService] = useState("");
@@ -159,6 +188,10 @@ export function MaintenancePage() {
         </Button>
 
         {/* Add-record form */}
+        <Button variant="secondary" className="mt-4" onClick={() => { setShowForm(true); setFormError(null); }}>
+          <Plus size={18} /> Add record
+        </Button>
+
         {showForm && (
           <div className="mt-4 rounded-lg border border-surface1 bg-surface0 p-4 space-y-3">
             <div className="flex items-center justify-between mb-1">
@@ -250,6 +283,47 @@ export function MaintenancePage() {
               >
                 {addRecord.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
                 Save
+              <button type="button" onClick={() => setShowForm(false)} className="text-subtext hover:text-text" aria-label="Close form"><X size={16} /></button>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-subtext mb-1">Service type *</label>
+              <input list="service-suggestions" value={formService} onChange={(e) => setFormService(e.target.value)}
+                placeholder="e.g. Oil & filter change"
+                className="w-full px-3 py-2 rounded-lg bg-mantle border border-surface1 text-text text-sm placeholder:text-overlay1" />
+              <datalist id="service-suggestions">{COMMON_SERVICES.map((s) => <option key={s} value={s} />)}</datalist>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-subtext mb-1">Mileage at service</label>
+                <input type="number" value={formMileage} onChange={(e) => setFormMileage(e.target.value)}
+                  placeholder="e.g. 45000"
+                  className="w-full px-3 py-2 rounded-lg bg-mantle border border-surface1 text-text text-sm placeholder:text-overlay1" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-subtext mb-1">Date</label>
+                <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-mantle border border-surface1 text-text text-sm" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-subtext mb-1">Next due mileage</label>
+              <input type="number" value={formNextMileage} onChange={(e) => setFormNextMileage(e.target.value)}
+                placeholder="e.g. 50000"
+                className="w-full px-3 py-2 rounded-lg bg-mantle border border-surface1 text-text text-sm placeholder:text-overlay1" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-subtext mb-1">Notes</label>
+              <textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)}
+                placeholder="Shop, parts used, observations…" rows={2}
+                className="w-full px-3 py-2 rounded-lg bg-mantle border border-surface1 text-text text-sm placeholder:text-overlay1 resize-none" />
+            </div>
+            {formError && <p className="text-xs text-red-400">{formError}</p>}
+            <div className="flex gap-2 justify-end">
+              <Button variant="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="primary" size="sm"
+                disabled={!formService.trim() || addRecord.isPending}
+                onClick={() => { if (!formService.trim()) { setFormError("Service type is required"); return; } addRecord.mutate(); }}>
+                {addRecord.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Save
               </Button>
             </div>
           </div>

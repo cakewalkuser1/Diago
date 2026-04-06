@@ -731,6 +731,7 @@ export function ResultsPanel() {
                       setDispatchResponse(res);
                     } catch (e) {
                       toast(e instanceof Error ? e.message : "Failed to continue dispatch", "error");
+                      toast(e instanceof Error ? e.message : "Action failed. Please try again.", "error");
                     } finally {
                       setDispatchLoading(false);
                     }
