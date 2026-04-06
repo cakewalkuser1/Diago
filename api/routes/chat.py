@@ -1,6 +1,6 @@
 """
 Chat API route — DiagBot assistant.
-Prefers Ollama (hosted by backend). Falls back to in-process model when Ollama is unavailable (local dev).
+Prefers Anthropic (Claude). Falls back to Ollama when configured/reachable.
 """
 
 import json
@@ -112,6 +112,37 @@ def _call_ollama(messages: list[dict], system_prompt: str) -> str | None:
             return (out.get("message") or {}).get("content", "")
     except Exception as e:
         logger.debug("Ollama not used: %s", e)
+        return None
+
+
+def _call_anthropic(messages: list[dict], system_prompt: str) -> str | None:
+    """Return assistant content from Anthropic (Claude), or None if unavailable."""
+    settings = get_settings().llm
+    api_key = (settings.anthropic_api_key or "").strip()
+    if not api_key:
+        return None
+    try:
+        import anthropic
+    except ImportError:
+        logger.debug("Anthropic SDK not installed")
+        return None
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=settings.anthropic_model,
+            max_tokens=1024,
+            system=system_prompt,
+            messages=messages,
+        )
+        parts: list[str] = []
+        for block in response.content:
+            if getattr(block, "type", "") == "text" and getattr(block, "text", ""):
+                parts.append(block.text)
+        content = "".join(parts).strip()
+        return content or None
+    except Exception as e:
+        logger.debug("Anthropic not used: %s", e)
         return None
 
 
@@ -244,29 +275,27 @@ async def chat_stream(request: ChatRequest):
 @router.post("/", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
-    Send messages to DiagBot. Backend proxies to Ollama (hosted by Diago).
+    Send messages to DiagBot. Backend prefers Anthropic (Claude).
     RAG augments with ASE-aligned reference material when available.
     """
     messages, system_prompt, sources = _prepare_chat(request)
 
-    # 1) Try Ollama first (when hosted)
+    # 1) Use Anthropic (Claude) first when API key is configured
+    content = _call_anthropic(messages, system_prompt)
+    if content:
+        return ChatResponse(content=content, sources=sources)
+
+    # 2) Fall back to Ollama when hosted/reachable
     if _ollama_reachable():
         content = _call_ollama(messages, system_prompt)
         if content:
             return ChatResponse(content=content, sources=sources)
 
-    # 2) Fall back to in-process model (local dev, no Ollama/Docker)
-    try:
-        from api.inprocess_llm import chat_completion
-        content = chat_completion(messages, system_prompt)
-        err_prefixes = ("DiagBot needs", "Chat error:")
-        if content and not any(content.startswith(p) for p in err_prefixes):
-            return ChatResponse(content=content, sources=sources)
-    except Exception as e:
-        logger.debug("In-process chat skipped: %s", e)
-
     return ChatResponse(
-        content="Chat service temporarily unavailable. Install Ollama (ollama.com) or run: pip install llama-cpp-python",
+        content=(
+            "Chat service temporarily unavailable. Configure ANTHROPIC_API_KEY, "
+            "or run Ollama (ollama.com)."
+        ),
         error="no_backend",
         sources=[],
     )

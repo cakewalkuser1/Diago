@@ -102,6 +102,9 @@ class DatabaseManager:
         self._seed_trouble_codes_if_empty()
         self._seed_failure_modes_if_empty()
         self._seed_mechanics_if_empty()
+        self._run_content_migrations()
+        self._ensure_tsb_extended_columns()
+        self._seed_labor_times_if_empty()
         logger.info("Database initialization complete")
 
     def _create_tables(self):
@@ -473,19 +476,20 @@ class DatabaseManager:
         return dict(row)
 
     def _seed_failure_modes_if_empty(self):
-        """Seed failure_modes if the table is empty."""
+        """
+        Upsert all failure modes from seed data.
+        Uses INSERT OR IGNORE so new patterns added to the seed file are picked
+        up on next startup without wiping user-created modes.
+        """
         try:
-            cursor = self.connection.execute("SELECT COUNT(*) FROM failure_modes")
-            count = cursor.fetchone()[0]
+            self.connection.execute("SELECT 1 FROM failure_modes LIMIT 1")
         except sqlite3.OperationalError:
-            return
-        if count > 0:
             return
         import json
         from database.seed_failure_modes import get_seed_failure_modes
         for fm in get_seed_failure_modes():
             self.connection.execute(
-                """INSERT INTO failure_modes
+                """INSERT OR IGNORE INTO failure_modes
                    (failure_id, display_name, description, mechanical_class,
                     required_conditions, supporting_conditions, disqualifiers,
                     weight, confirm_tests, vehicle_scope)
@@ -1128,7 +1132,9 @@ class DatabaseManager:
         where = " AND ".join(conditions) if conditions else "1=1"
         params.append(limit)
         cursor = self.connection.execute(
-            f"""SELECT id, model_year, make, model, component, summary, nhtsa_id, document_id, created_at
+            f"""SELECT id, model_year, make, model, component, summary, nhtsa_id, document_id,
+                       bulletin_date, affected_mileage_range, affected_codes,
+                       document_url, manufacturer_id, severity, source, created_at
                 FROM technical_service_bulletins WHERE {where} ORDER BY model_year DESC, make, model LIMIT ?""",
             params,
         )
@@ -1143,3 +1149,308 @@ class DatabaseManager:
             return cursor.fetchone()[0]
         except sqlite3.OperationalError:
             return 0
+
+    def insert_tsb_extended(
+        self,
+        model_year: int,
+        make: str,
+        model: str,
+        component: str = "",
+        summary: str = "",
+        nhtsa_id: str = "",
+        document_id: str = "",
+        bulletin_date: str = "",
+        affected_mileage_range: str = "",
+        affected_codes: str = "",
+        document_url: str = "",
+        manufacturer_id: str = "",
+        severity: str = "medium",
+        source: str = "nhtsa",
+    ) -> int:
+        """Insert a TSB with all extended fields. Returns row id."""
+        cursor = self.connection.execute(
+            """INSERT INTO technical_service_bulletins
+               (model_year, make, model, component, summary, nhtsa_id, document_id,
+                bulletin_date, affected_mileage_range, affected_codes,
+                document_url, manufacturer_id, severity, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                model_year, make.strip(), model.strip(),
+                component.strip(), summary.strip(),
+                nhtsa_id.strip(), document_id.strip(),
+                bulletin_date.strip(), affected_mileage_range.strip(),
+                affected_codes.strip(), document_url.strip(),
+                manufacturer_id.strip(), severity.strip(), source.strip(),
+            ),
+        )
+        self.connection.commit()
+        return cursor.lastrowid
+
+    def _ensure_tsb_extended_columns(self):
+        """Add extended columns to technical_service_bulletins if missing."""
+        extended_cols = [
+            ("bulletin_date",           "TEXT DEFAULT ''"),
+            ("affected_mileage_range",  "TEXT DEFAULT ''"),
+            ("affected_codes",          "TEXT DEFAULT ''"),
+            ("document_url",            "TEXT DEFAULT ''"),
+            ("manufacturer_id",         "TEXT DEFAULT ''"),
+            ("severity",                "TEXT DEFAULT 'medium'"),
+            ("source",                  "TEXT DEFAULT 'nhtsa'"),
+        ]
+        try:
+            cursor = self.connection.execute("PRAGMA table_info(technical_service_bulletins)")
+            existing = {row[1] for row in cursor.fetchall()}
+            for col_name, col_def in extended_cols:
+                if col_name not in existing:
+                    self.connection.execute(
+                        f"ALTER TABLE technical_service_bulletins ADD COLUMN {col_name} {col_def}"
+                    )
+                    logger.debug("Added column %s to technical_service_bulletins", col_name)
+            self.connection.commit()
+        except sqlite3.OperationalError as e:
+            logger.warning("Could not extend technical_service_bulletins: %s", e)
+
+    # ---- Content migrations (wiring diagrams, labor times) ----
+
+    def _run_content_migrations(self):
+        """Run content migrations (wiring_diagrams, labor_times tables)."""
+        migrations_path = Path(__file__).parent / "migrations_content.sql"
+        if migrations_path.exists():
+            with open(migrations_path, "r") as f:
+                sql = f.read()
+            self.connection.executescript(sql)
+            self.connection.commit()
+            logger.debug("Content migrations applied")
+
+    # ---- Wiring Diagrams ----
+
+    def insert_wiring_diagram(
+        self,
+        system: str,
+        circuit_name: str,
+        circuit_number: str = "",
+        component: str = "",
+        description: str = "",
+        vehicle_make: str | None = None,
+        vehicle_model: str | None = None,
+        year_min: int | None = None,
+        year_max: int | None = None,
+        diagram_url: str = "",
+        diagram_source: str = "",
+        related_codes: str = "",
+        related_failure_modes: str = "",
+    ) -> int:
+        """Insert a wiring diagram record. Returns row id."""
+        cursor = self.connection.execute(
+            """INSERT INTO wiring_diagrams
+               (system, circuit_name, circuit_number, component, description,
+                vehicle_make, vehicle_model, year_min, year_max,
+                diagram_url, diagram_source, related_codes, related_failure_modes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (system, circuit_name, circuit_number, component, description,
+             vehicle_make, vehicle_model, year_min, year_max,
+             diagram_url, diagram_source, related_codes, related_failure_modes),
+        )
+        self.connection.commit()
+        return cursor.lastrowid
+
+    def insert_wiring_pin(
+        self,
+        diagram_id: int,
+        connector_id: str,
+        pin_number: str,
+        wire_color: str = "",
+        signal_type: str = "signal",
+        connects_to: str = "",
+        typical_value: str = "",
+        notes: str = "",
+    ) -> int:
+        """Insert a connector pin row for a wiring diagram. Returns row id."""
+        cursor = self.connection.execute(
+            """INSERT INTO wiring_diagram_pins
+               (diagram_id, connector_id, pin_number, wire_color,
+                signal_type, connects_to, typical_value, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (diagram_id, connector_id, pin_number, wire_color,
+             signal_type, connects_to, typical_value, notes),
+        )
+        self.connection.commit()
+        return cursor.lastrowid
+
+    def search_wiring_diagrams(
+        self,
+        system: str | None = None,
+        component: str | None = None,
+        dtc_code: str | None = None,
+        vehicle_make: str | None = None,
+        vehicle_model: str | None = None,
+        model_year: int | None = None,
+        limit: int = 50,
+    ) -> list[dict]:
+        """Search wiring diagrams. Returns list of dicts including pin rows."""
+        conditions = []
+        params = []
+        if system:
+            conditions.append("LOWER(system) = LOWER(?)")
+            params.append(system.strip())
+        if component:
+            conditions.append("LOWER(component) LIKE LOWER(?)")
+            params.append(f"%{component.strip()}%")
+        if dtc_code:
+            conditions.append("LOWER(related_codes) LIKE LOWER(?)")
+            params.append(f"%{dtc_code.strip()}%")
+        if vehicle_make:
+            conditions.append("(vehicle_make IS NULL OR LOWER(vehicle_make) LIKE LOWER(?))")
+            params.append(f"%{vehicle_make.strip()}%")
+        if vehicle_model:
+            conditions.append("(vehicle_model IS NULL OR LOWER(vehicle_model) LIKE LOWER(?))")
+            params.append(f"%{vehicle_model.strip()}%")
+        if model_year is not None:
+            conditions.append("(year_min IS NULL OR year_min <= ?) AND (year_max IS NULL OR year_max >= ?)")
+            params.extend([model_year, model_year])
+
+        where = " AND ".join(conditions) if conditions else "1=1"
+        params.append(limit)
+        try:
+            cursor = self.connection.execute(
+                f"""SELECT id, system, circuit_name, circuit_number, component, description,
+                           vehicle_make, vehicle_model, year_min, year_max,
+                           diagram_url, diagram_source, related_codes, related_failure_modes, created_at
+                    FROM wiring_diagrams WHERE {where} ORDER BY system, circuit_name LIMIT ?""",
+                params,
+            )
+            diagrams = [dict(zip([c[0] for c in cursor.description], row)) for row in cursor.fetchall()]
+            # Attach pins to each diagram
+            for d in diagrams:
+                pin_cursor = self.connection.execute(
+                    "SELECT connector_id, pin_number, wire_color, signal_type, connects_to, typical_value, notes "
+                    "FROM wiring_diagram_pins WHERE diagram_id = ? ORDER BY connector_id, pin_number",
+                    (d["id"],),
+                )
+                d["pins"] = [dict(zip([c[0] for c in pin_cursor.description], row)) for row in pin_cursor.fetchall()]
+            return diagrams
+        except sqlite3.OperationalError as e:
+            logger.warning("wiring_diagrams search failed: %s", e)
+            return []
+
+    def get_wiring_diagram_by_id(self, diagram_id: int) -> dict | None:
+        """Fetch a single wiring diagram with its pins."""
+        try:
+            cursor = self.connection.execute(
+                "SELECT * FROM wiring_diagrams WHERE id = ?", (diagram_id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            d = dict(row)
+            pin_cursor = self.connection.execute(
+                "SELECT connector_id, pin_number, wire_color, signal_type, connects_to, typical_value, notes "
+                "FROM wiring_diagram_pins WHERE diagram_id = ? ORDER BY connector_id, pin_number",
+                (diagram_id,),
+            )
+            d["pins"] = [dict(zip([c[0] for c in pin_cursor.description], row)) for row in pin_cursor.fetchall()]
+            return d
+        except sqlite3.OperationalError:
+            return None
+
+    def get_wiring_diagram_count(self) -> int:
+        """Return total number of wiring diagram records."""
+        try:
+            cursor = self.connection.execute("SELECT COUNT(*) FROM wiring_diagrams")
+            return cursor.fetchone()[0]
+        except sqlite3.OperationalError:
+            return 0
+
+    # ---- Labor Times ----
+
+    def insert_labor_time(
+        self,
+        operation_key: str,
+        operation_name: str,
+        labor_hours: float,
+        labor_hours_max: float | None = None,
+        vehicle_make: str | None = None,
+        vehicle_model: str | None = None,
+        year_min: int | None = None,
+        year_max: int | None = None,
+        skill_level: str = "intermediate",
+        notes: str = "",
+        related_codes: str = "",
+        mechanical_class: str = "",
+    ) -> int:
+        """Insert or replace a labor time record. Returns row id."""
+        cursor = self.connection.execute(
+            """INSERT OR REPLACE INTO labor_times
+               (operation_key, operation_name, labor_hours, labor_hours_max,
+                vehicle_make, vehicle_model, year_min, year_max,
+                skill_level, notes, related_codes, mechanical_class)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (operation_key, operation_name, labor_hours, labor_hours_max,
+             vehicle_make, vehicle_model, year_min, year_max,
+             skill_level, notes, related_codes, mechanical_class),
+        )
+        self.connection.commit()
+        return cursor.lastrowid
+
+    def get_labor_times(
+        self,
+        operation_key: str,
+        vehicle_make: str | None = None,
+        vehicle_model: str | None = None,
+        model_year: int | None = None,
+    ) -> list[dict]:
+        """
+        Look up labor times for an operation. Returns the most-specific match first
+        (make+model+year > make+model > make > generic).
+        """
+        try:
+            params: list = [f"%{operation_key.lower()}%"]
+            conditions = ["LOWER(operation_key) LIKE ?"]
+            if vehicle_make:
+                conditions.append("(vehicle_make IS NULL OR LOWER(vehicle_make) = LOWER(?))")
+                params.append(vehicle_make)
+            if vehicle_model:
+                conditions.append("(vehicle_model IS NULL OR LOWER(vehicle_model) = LOWER(?))")
+                params.append(vehicle_model)
+            if model_year is not None:
+                conditions.append("(year_min IS NULL OR year_min <= ?) AND (year_max IS NULL OR year_max >= ?)")
+                params.extend([model_year, model_year])
+
+            where = " AND ".join(conditions)
+            cursor = self.connection.execute(
+                f"""SELECT * FROM labor_times WHERE {where}
+                    ORDER BY
+                      (CASE WHEN vehicle_make IS NOT NULL THEN 1 ELSE 0 END) DESC,
+                      (CASE WHEN vehicle_model IS NOT NULL THEN 1 ELSE 0 END) DESC,
+                      (CASE WHEN year_min IS NOT NULL THEN 1 ELSE 0 END) DESC
+                    LIMIT 10""",
+                params,
+            )
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+        except sqlite3.OperationalError as e:
+            logger.warning("labor_times query failed: %s", e)
+            return []
+
+    def _seed_labor_times_if_empty(self):
+        """Seed labor_times from motor_daas stub if the table is empty."""
+        try:
+            cursor = self.connection.execute("SELECT COUNT(*) FROM labor_times")
+            if cursor.fetchone()[0] > 0:
+                return
+        except sqlite3.OperationalError:
+            return
+        try:
+            from api.services.motor_daas import _LABOR_DB
+            for key, lt in _LABOR_DB.items():
+                self.insert_labor_time(
+                    operation_key=key,
+                    operation_name=lt.operation,
+                    labor_hours=lt.hours,
+                    labor_hours_max=lt.hours_max,
+                    skill_level=lt.skill_level,
+                    notes=lt.notes,
+                )
+            logger.info("Seeded %d labor time records", len(_LABOR_DB))
+        except Exception as e:
+            logger.warning("Could not seed labor_times: %s", e)

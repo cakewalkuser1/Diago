@@ -189,12 +189,18 @@ def run_diagnosis(
 
     # Rank failure modes from pattern layer (master-tech)
     if db_manager and getattr(result, "diagnostic_intake", None):
-        from core.failure_pattern_engine import score_failure_modes
+        from core.failure_pattern_engine import score_failure_modes, fuse_with_audio_scores
         failure_modes = db_manager.get_failure_modes()
-        result.ranked_failure_modes = score_failure_modes(
+        ranked = score_failure_modes(
             result.diagnostic_intake,
             failure_modes,
         )
+        # Fuse with audio class scores when audio was recorded (improves accuracy
+        # when both the sound and the DTC/symptom evidence agree on a class).
+        audio_scores = getattr(result, "class_scores", None)
+        if audio_scores:
+            ranked = fuse_with_audio_scores(ranked, audio_scores)
+        result.ranked_failure_modes = ranked
 
     # Optional: extend LLM narrative with failure-mode explanation (Phase 4)
     if getattr(result, "ranked_failure_modes", None):

@@ -42,6 +42,8 @@ export function useJobTracking(jobId: number | null): JobTrackingState {
   useEffect(() => {
     if (!jobId) return;
     const apiBase = getApiBase();
+    // In dev (empty base) use window.location.host so the Vite proxy handles it.
+    // In production use VITE_API_URL, converting http(s) to ws(s).
     const wsUrl = apiBase
       ? `${apiBase.replace(/^http/, "ws")}/api/v1/tracking/${jobId}`
       : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/v1/tracking/${jobId}`;

@@ -26,13 +26,9 @@ stripe
 pytest
 pytest-cov
 
-# DiagBot chat: in-process model (no Ollama required). Model auto-downloads on first use.
-# Windows without C++: pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-llama-cpp-python
-
 # Optional: LLM providers (uncomment as needed)
 # openai
-# anthropic
+anthropic
 # tavily-python
 
 # Dispatch flow: LangGraph multi-agent flow (diagnostics -> parts -> mechanic)

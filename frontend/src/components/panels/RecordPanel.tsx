@@ -70,6 +70,8 @@ export function RecordPanel() {
       mr.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         setAudioBlob(blob, `recording_${Date.now()}.webm`);
+        // Use ref for accurate final duration — the closure over `elapsed` state
+        // would always capture the value at recording start (0).
         const finalSecs = (Date.now() - startTimeRef.current) / 1000;
         setStatusText(`Recorded: ${formatDuration(finalSecs)}`);
         stream.getTracks().forEach((t) => t.stop());
@@ -81,6 +83,7 @@ export function RecordPanel() {
       setElapsed(0);
       startTimeRef.current = Date.now();
 
+      startTimeRef.current = Date.now();
       timerRef.current = setInterval(() => {
         const secs = (Date.now() - startTimeRef.current) / 1000;
         setElapsed(secs);

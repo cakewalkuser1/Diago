@@ -171,7 +171,9 @@ def score_failure_modes(
     return results
 
 
-# Fixed bonus/penalty for confirm test results (simple implementation; full Bayesian later)
+# Default bonus/penalty magnitudes — overridden per test by "confidence_weight" field.
+# confidence_weight in a confirm_test entry scales these: 1.0 = full, 0.5 = half, etc.
+# Example: leakdown test (confidence_weight 1.2) is more diagnostic than visual (0.6).
 CONFIRM_PASS_BONUS = 0.15
 CONFIRM_FAIL_PENALTY = 0.35
 
@@ -183,8 +185,13 @@ def apply_confirm_test(
 ) -> list[FailureModeMatch]:
     """
     Update scores based on a confirm test result (pass/fail), then re-sort.
-    test_id should match the "test" field in a failure mode's confirm_tests.
-    result: "pass" or "fail".
+
+    test_id must match the "test" field in a failure mode's confirm_tests list.
+    result: "pass" | "fail" (also accepts yes/no/true/false/1/0).
+
+    Each confirm_test entry may include an optional "confidence_weight" (float,
+    default 1.0) that scales the pass bonus / fail penalty, so high-diagnostic-
+    value tests (leakdown, smoke machine) move the score more than visual checks.
     """
     if not test_id or not result:
         return list(ranked_failure_modes)
@@ -194,16 +201,14 @@ def apply_confirm_test(
     if not is_pass and not is_fail:
         return list(ranked_failure_modes)
 
-    bonus = CONFIRM_PASS_BONUS if is_pass else -CONFIRM_FAIL_PENALTY
     updated = []
     for fm in ranked_failure_modes:
         tests = fm.confirm_tests or []
-        has_test = any(
-            (t or {}).get("test") == test_id
-            for t in tests
-            if isinstance(t, dict)
+        matched_test = next(
+            (t for t in tests if isinstance(t, dict) and t.get("test") == test_id),
+            None,
         )
-        if not has_test:
+        if matched_test is None:
             updated.append(FailureModeMatch(
                 failure_id=fm.failure_id,
                 display_name=fm.display_name,
@@ -214,7 +219,16 @@ def apply_confirm_test(
                 ruled_out_disqualifiers=fm.ruled_out_disqualifiers,
             ))
             continue
-        new_score = max(0.0, min(1.0, fm.score + bonus))
+
+        # Scale bonus/penalty by per-test confidence_weight (default 1.0)
+        cw = float(matched_test.get("confidence_weight") or 1.0)
+        cw = max(0.1, min(cw, 2.0))  # clamp to sane range
+        if is_pass:
+            delta = CONFIRM_PASS_BONUS * cw
+        else:
+            delta = -(CONFIRM_FAIL_PENALTY * cw)
+
+        new_score = max(0.0, min(1.0, fm.score + delta))
         updated.append(FailureModeMatch(
             failure_id=fm.failure_id,
             display_name=fm.display_name,
@@ -226,3 +240,64 @@ def apply_confirm_test(
         ))
     updated.sort(key=lambda x: x.score, reverse=True)
     return updated
+
+
+def fuse_with_audio_scores(
+    ranked_failure_modes: list[FailureModeMatch],
+    audio_class_scores: dict[str, float],
+    fusion_weight: float = 0.25,
+) -> list[FailureModeMatch]:
+    """
+    Blend failure-mode pattern scores with audio mechanical-class scores.
+
+    When the audio engine and the DTC/symptom pattern engine agree on a class,
+    the combined evidence should yield higher confidence than either alone.
+    When they disagree, the score is modestly dampened.
+
+    Args:
+        ranked_failure_modes: Output of score_failure_modes().
+        audio_class_scores: Normalized class probabilities from diagnostic_engine
+                            (keys are MECHANICAL_CLASSES strings, values 0-1).
+        fusion_weight: How much the audio agreement/disagreement shifts the score.
+                       0.25 means audio can add/remove up to 0.25 * audio_score.
+
+    Returns:
+        Re-scored and re-sorted failure mode list.
+    """
+    if not audio_class_scores or not ranked_failure_modes:
+        return list(ranked_failure_modes)
+
+    fused = []
+    for fm in ranked_failure_modes:
+        if fm.score <= 0:
+            fused.append(fm)
+            continue
+        mech_class = fm.failure_id  # fallback: no class match → neutral
+        # FailureModeMatch doesn't store mechanical_class directly; look it up
+        # by iterating audio_class_scores for a rough match via display hints.
+        # Best-effort: if the fm.failure_id contains a class keyword, use it.
+        audio_support = 0.0
+        for cls, cls_score in audio_class_scores.items():
+            cls_slug = cls.lower()
+            fm_slug = fm.failure_id.lower()
+            fm_display = fm.display_name.lower()
+            if (cls_slug in fm_slug or
+                    any(word in fm_display for word in cls_slug.replace("_", " ").split())):
+                audio_support = cls_score
+                break
+
+        # Agreement: audio_support > 0 → small boost; silence/disagreement → neutral/slight damp
+        adjustment = fusion_weight * (audio_support - 0.14)  # 0.14 ≈ uniform prior for 7 classes
+        new_score = max(0.0, min(1.0, fm.score + adjustment))
+        fused.append(FailureModeMatch(
+            failure_id=fm.failure_id,
+            display_name=fm.display_name,
+            description=fm.description,
+            score=round(new_score, 4),
+            confirm_tests=fm.confirm_tests,
+            matched_conditions=fm.matched_conditions,
+            ruled_out_disqualifiers=fm.ruled_out_disqualifiers,
+        ))
+
+    fused.sort(key=lambda x: x.score, reverse=True)
+    return fused
