@@ -6,7 +6,7 @@ matplotlib
 sounddevice
 soundfile
 pydub
-audioop-lts
+# audioop-lts removed — audioop is not used anywhere in this codebase
 
 # Configuration
 pydantic-settings
