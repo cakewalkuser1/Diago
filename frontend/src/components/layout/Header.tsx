@@ -65,14 +65,14 @@ export function Header() {
           to="/"
           className="flex items-center gap-2.5 no-underline group"
         >
-          <div className="p-1.5 rounded-lg bg-[var(--ds-primary-container)]/10 group-hover:bg-[var(--ds-primary-container)]/15 transition-colors">
-            <Activity size={18} className="text-[var(--ds-primary-container)]" />
+          <div className="p-1.5 rounded-lg bg-[var(--ds-primary)]/10 group-hover:bg-[var(--ds-primary)]/15 transition-colors kinetic-glow">
+            <Activity size={18} className="text-[var(--ds-primary)] drop-shadow-[0_0_6px_rgba(88,191,255,0.5)]" />
           </div>
           <span
-            className="text-base font-semibold tracking-tight text-text"
+            className="text-base font-bold tracking-tighter text-[var(--ds-primary)] drop-shadow-[0_0_8px_rgba(88,191,255,0.4)]"
             style={{ fontFamily: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif' }}
           >
-            Autopilot
+            DIAGO
           </span>
         </Link>
       </div>

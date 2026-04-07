@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 /* ─── Design System: The Kinetic Expert ─── */
@@ -24,60 +24,60 @@
 
   --radius-card: 12px;
   --radius-card-tight: 8px;
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Space Grotesk", "Manrope", ui-sans-serif, system-ui, sans-serif;
   --space-section: 1.5rem;
   --space-block: 1rem;
 }
 
-/* ─── Default (dark): Obsidian canvas ─── */
+/* ─── Default (dark): Deep navy ─── */
 :root {
-  --ds-base: #131313;
-  --ds-mantle: #0e0e0e;
-  --ds-crust: #090909;
-  --ds-surface0: #1a1a1a;
-  --ds-surface1: #252525;
-  --ds-surface2: #333333;
-  --ds-overlay0: #555555;
-  --ds-overlay1: #888888;
-  --ds-text: #f0f0f0;
-  --ds-subtext: #7a7a7a;
-  --ds-primary: #ffb4a5;
-  --ds-primary-container: #ff5638;
-  --ds-secondary: #bdf4ff;
-  --ds-secondary-dim: #00daf3;
+  --ds-base: #080e18;
+  --ds-mantle: #0d141f;
+  --ds-crust: #000000;
+  --ds-surface0: #131a26;
+  --ds-surface1: #18202d;
+  --ds-surface2: #1e2635;
+  --ds-overlay0: #424854;
+  --ds-overlay1: #707582;
+  --ds-text: #e9eefd;
+  --ds-subtext: #a5abb9;
+  --ds-primary: #58bfff;
+  --ds-primary-container: #00a8ee;
+  --ds-secondary: #699cff;
+  --ds-secondary-dim: #81ecff;
   --ds-green: #4ade80;
   --ds-yellow: #fbbf24;
-  --ds-red: #ef4444;
-  --ds-gradient-primary: linear-gradient(135deg, #ff5638 0%, #ff8a75 100%);
-  --ds-gradient-secondary: linear-gradient(135deg, #00b8d4 0%, #00daf3 100%);
-  --ds-glass-bg: rgba(26, 26, 26, 0.65);
-  --ds-glass-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --ds-red: #ff716c;
+  --ds-gradient-primary: linear-gradient(135deg, #00a8ee 0%, #58bfff 100%);
+  --ds-gradient-secondary: linear-gradient(135deg, #699cff 0%, #81ecff 100%);
+  --ds-glass-bg: rgba(19, 26, 38, 0.65);
+  --ds-glass-shadow: inset 0 0 0 1px rgba(88, 191, 255, 0.08);
 }
 
 /* ─── Light theme override ─── */
 [data-theme="light"] {
-  --ds-base: #f5f5f5;
+  --ds-base: #f0f4ff;
   --ds-mantle: #ffffff;
-  --ds-crust: #eeeeee;
-  --ds-surface0: #efefef;
-  --ds-surface1: #e0e0e0;
-  --ds-surface2: #cccccc;
-  --ds-overlay0: #999999;
-  --ds-overlay1: #666666;
-  --ds-text: #111111;
-  --ds-subtext: #555555;
-  --ds-primary: #cc2200;
-  --ds-primary-container: #ff5638;
-  --ds-secondary: #006688;
-  --ds-secondary-dim: #0099bb;
+  --ds-crust: #e8edf8;
+  --ds-surface0: #e8edf8;
+  --ds-surface1: #dce3f0;
+  --ds-surface2: #c8d2e6;
+  --ds-overlay0: #8891a8;
+  --ds-overlay1: #5a6478;
+  --ds-text: #0d1421;
+  --ds-subtext: #3d4a5c;
+  --ds-primary: #006592;
+  --ds-primary-container: #0077aa;
+  --ds-secondary: #004da8;
+  --ds-secondary-dim: #005762;
   --ds-green: #16a34a;
   --ds-yellow: #d97706;
-  --ds-red: #dc2626;
-  --ds-gradient-primary: linear-gradient(135deg, #ff5638 0%, #ff7a5e 100%);
-  --ds-gradient-secondary: linear-gradient(135deg, #0099bb 0%, #00c5e0 100%);
-  --ds-glass-bg: rgba(245, 245, 245, 0.75);
-  --ds-glass-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
+  --ds-red: #c0392b;
+  --ds-gradient-primary: linear-gradient(135deg, #006592 0%, #0099cc 100%);
+  --ds-gradient-secondary: linear-gradient(135deg, #004da8 0%, #0066cc 100%);
+  --ds-glass-bg: rgba(240, 244, 255, 0.75);
+  --ds-glass-shadow: inset 0 0 0 1px rgba(0, 101, 146, 0.1);
 }
 
 /* ─── Base ─── */
@@ -171,5 +171,20 @@ html, body, #root {
 
 /* ─── Selection ─── */
 ::selection {
-  background: color-mix(in srgb, var(--ds-primary-container) 30%, transparent);
+  background: color-mix(in srgb, var(--ds-primary) 25%, transparent);
+}
+
+/* ─── Kinetic glow (blue accent shadow) ─── */
+.kinetic-glow {
+  box-shadow: 0 0 20px rgba(88, 191, 255, 0.15);
+}
+.kinetic-glow-strong {
+  box-shadow: 0 0 30px rgba(88, 191, 255, 0.3);
+}
+
+/* ─── Pulse line ─── */
+.pulse-line {
+  background: linear-gradient(90deg, transparent 0%, var(--ds-primary) 50%, transparent 100%);
+  height: 2px;
+  width: 100%;
 }
