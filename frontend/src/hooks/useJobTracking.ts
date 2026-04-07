@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { ref, onValue, off } from "firebase/database";
 import { getJob } from "@/lib/api";
 import { getApiBase } from "@/lib/env";
+import { getFirebaseDb, isFirebaseConfigured } from "@/lib/firebase";
 
 export interface JobTrackingState {
   job: Awaited<ReturnType<typeof getJob>> | null;
@@ -39,11 +41,31 @@ export function useJobTracking(jobId: number | null): JobTrackingState {
       .finally(() => setLoading(false));
   }, [jobId]);
 
+  // Real-time location: Firebase Realtime DB (preferred) or WebSocket (fallback)
   useEffect(() => {
     if (!jobId) return;
+
+    if (isFirebaseConfigured) {
+      const db = getFirebaseDb();
+      if (!db) return;
+      const locationRef = ref(db, `tracking/${jobId}/location`);
+      onValue(locationRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data && typeof data.latitude === "number" && typeof data.longitude === "number") {
+          setMechanicLocation({
+            latitude: data.latitude,
+            longitude: data.longitude,
+            heading: data.heading,
+            speed_mph: data.speed_mph,
+            eta_min: data.eta_min,
+          });
+        }
+      });
+      return () => off(locationRef);
+    }
+
+    // Fallback: WebSocket
     const apiBase = getApiBase();
-    // In dev (empty base) use window.location.host so the Vite proxy handles it.
-    // In production use VITE_API_URL, converting http(s) to ws(s).
     const wsUrl = apiBase
       ? `${apiBase.replace(/^http/, "ws")}/api/v1/tracking/${jobId}`
       : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/v1/tracking/${jobId}`;

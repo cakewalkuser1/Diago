@@ -220,8 +220,8 @@ export function DiagnoseView() {
 
       {inWizard && !isOnetime && diagnosisStep === 3 && <RecordPanel />}
 
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 min-h-0 overflow-hidden lg:grid lg:grid-cols-12">
+        <div className="flex flex-col min-w-0 lg:col-span-8 lg:border-r lg:border-surface1">
           {inWizard && !isOnetime && diagnosisStep === 3 && <SpectrogramView />}
 
           {inWizard ? (
@@ -571,12 +571,16 @@ export function DiagnoseView() {
           )}
         </div>
 
-        <aside
-          className={cn(
-            "w-80 border-l border-surface1 bg-mantle flex-col",
-            "hidden lg:flex"
-          )}
-        >
+        <aside className="hidden lg:flex lg:col-span-4 flex-col bg-mantle">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-surface1">
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <span
+              className="text-xs font-bold uppercase tracking-widest text-primary"
+              style={{ fontFamily: '"Space Grotesk", sans-serif' }}
+            >
+              AI Diagnostics
+            </span>
+          </div>
           <SessionHistory />
         </aside>
 

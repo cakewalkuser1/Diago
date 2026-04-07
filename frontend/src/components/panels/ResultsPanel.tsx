@@ -335,15 +335,30 @@ export function ResultsPanel() {
                   id={`failure-${fm.failure_id}`}
                   className="bg-surface0 rounded-lg p-4 border border-surface1 space-y-2 scroll-mt-4"
                 >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-semibold text-text">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-semibold text-text text-sm">
                       {idx + 1}. {fm.display_name}
                     </span>
-                    {showAllTechnical && (
-                      <span className="text-xs text-overlay0">
-                        {(fm.score * 100).toFixed(0)}% match
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {showAllTechnical && (
+                        <span className="text-xs text-overlay0">
+                          {(fm.score * 100).toFixed(0)}%
+                        </span>
+                      )}
+                      {idx === 0 ? (
+                        <span className="text-[10px] font-label px-2 py-0.5 rounded bg-red/10 text-red border border-red/20 uppercase tracking-wider font-bold">
+                          ALERT
+                        </span>
+                      ) : idx === 1 ? (
+                        <span className="text-[10px] font-label px-2 py-0.5 rounded bg-yellow/10 text-yellow border border-yellow/20 uppercase tracking-wider font-bold">
+                          SUSPECT
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-label px-2 py-0.5 rounded bg-green/10 text-green border border-green/20 uppercase tracking-wider font-bold">
+                          NOMINAL
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {fm.description && (
                     <p className="text-sm text-subtext">{fm.description}</p>

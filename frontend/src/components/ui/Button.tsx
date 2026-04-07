@@ -13,9 +13,9 @@ const variantStyles: Record<Variant, string> = {
   default:
     "bg-surface0 text-text hover:bg-surface1",
   primary:
-    "bg-gradient-primary text-white font-semibold hover:shadow-[0_0_22px_rgba(255,86,56,0.4)] active:scale-[0.98]",
+    "bg-gradient-primary text-white font-semibold hover:shadow-[0_0_22px_rgba(0,168,238,0.4)] active:scale-[0.98]",
   secondary:
-    "bg-[var(--ds-secondary-dim)] text-[#0a0a0a] font-semibold hover:shadow-[0_0_22px_rgba(0,218,243,0.4)] active:scale-[0.98]",
+    "bg-[var(--ds-primary-container)] text-white font-semibold hover:shadow-[0_0_22px_rgba(88,191,255,0.35)] active:scale-[0.98]",
   danger:
     "bg-red text-white font-semibold hover:opacity-90",
   ghost:
@@ -25,7 +25,7 @@ const variantStyles: Record<Variant, string> = {
   red:
     "bg-red text-white font-semibold hover:opacity-90",
   orange:
-    "bg-gradient-primary text-white font-semibold hover:shadow-[0_0_22px_rgba(255,86,56,0.4)] active:scale-[0.98]",
+    "bg-gradient-primary text-white font-semibold hover:shadow-[0_0_22px_rgba(0,168,238,0.4)] active:scale-[0.98]",
 };
 
 const sizeStyles: Record<Size, string> = {
