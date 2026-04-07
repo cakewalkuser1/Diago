@@ -52,7 +52,7 @@ export function MaintenancePage() {
           notes: formNotes.trim() || undefined,
           vehicle_make: vehicleSelection.makeName || undefined,
           vehicle_model: vehicleSelection.modelName || undefined,
-          vehicle_year: vehicleSelection.year ? parseInt(vehicleSelection.year, 10) : undefined,
+          vehicle_year: vehicleSelection.year ?? undefined,
         },
         userId
       ),

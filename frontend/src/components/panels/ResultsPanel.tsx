@@ -739,7 +739,6 @@ export function ResultsPanel() {
                         action: "part_selected",
                         selected_part: selectedPart,
                         payment_intent_id: paidIntentId,
-                        payment_intent_id: paymentIntentId,
                         user_latitude: userLatitude ?? undefined,
                         user_longitude: userLongitude ?? undefined,
                       });

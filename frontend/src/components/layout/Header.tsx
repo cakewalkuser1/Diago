@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Activity, Menu, Home, Stethoscope, Settings2, Zap, Wrench, Building2, CreditCard, Calendar, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Activity, Menu, Home, Stethoscope, Settings2, Zap, Wrench, Building2, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";

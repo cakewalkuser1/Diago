@@ -40,7 +40,7 @@ export function RecordPanel() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const startTimeRef = useRef<number>(0);
-  const [elapsed, setElapsed] = useState(0);
+  const [_elapsed, setElapsed] = useState(0);
   const [statusText, setStatusText] = useState("No audio loaded");
   const [micError, setMicError] = useState<string | null>(null);
 
