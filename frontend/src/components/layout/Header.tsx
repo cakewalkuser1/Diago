@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { Activity, Menu, Home, Stethoscope, Settings2, Zap, Wrench, Building2, CreditCard, Calendar } from "lucide-react";
+import { Activity, Menu, Home, Stethoscope, Settings2, Zap, Wrench, Building2, CreditCard, Calendar, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
-import { getSubscriptionStatus } from "@/lib/api";
+import { getSubscriptionStatus, healthCheck } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { useAppStore } from "@/stores/appStore";
 import { usePersona } from "@/contexts/PersonaContext";
@@ -40,6 +40,15 @@ export function Header() {
     enabled: Boolean(session?.access_token),
   });
 
+  const health = useQuery({
+    queryKey: ["health"],
+    queryFn: healthCheck,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
+  const isConnected = health.data?.status === "ok";
+  const healthLoading = health.isLoading || health.isFetching;
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -51,33 +60,56 @@ export function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 flex items-center justify-between px-5 py-3 bg-mantle/95 backdrop-blur-md">
+    <header className="sticky top-0 z-50 flex items-center justify-between px-5 py-3 bg-mantle/95 backdrop-blur-md border-b border-surface1/50">
       <div className="flex items-center gap-2">
+        {/* Mobile hamburger */}
         <Button
           variant="ghost"
           size="sm"
-          className="lg:hidden -ml-1"
+          className="md:hidden -ml-1"
           onClick={() => setSidebarOpen(!sidebarOpen)}
         >
           <Menu size={18} />
         </Button>
-        <Link
-          to="/"
-          className="flex items-center gap-2.5 no-underline group"
-        >
-          <div className="p-1.5 rounded-lg bg-[var(--ds-primary)]/10 group-hover:bg-[var(--ds-primary)]/15 transition-colors kinetic-glow">
-            <Activity size={18} className="text-[var(--ds-primary)] drop-shadow-[0_0_6px_rgba(88,191,255,0.5)]" />
-          </div>
+        {/* Logo — mobile only (SideNav handles desktop) */}
+        <Link to="/" className="flex items-center gap-2 no-underline group md:hidden">
+          <Activity size={16} className="text-[var(--ds-primary)] drop-shadow-[0_0_6px_rgba(88,191,255,0.5)]" />
           <span
-            className="text-base font-bold tracking-tighter text-[var(--ds-primary)] drop-shadow-[0_0_8px_rgba(88,191,255,0.4)]"
-            style={{ fontFamily: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif' }}
+            className="text-sm font-bold tracking-tighter text-[var(--ds-primary)] drop-shadow-[0_0_8px_rgba(88,191,255,0.4)]"
+            style={{ fontFamily: '"Space Grotesk", sans-serif' }}
           >
             DIAGO
           </span>
         </Link>
+        {/* Desktop: page context label */}
+        <span
+          className="hidden md:block text-xs font-semibold text-subtext uppercase tracking-[0.15em]"
+          style={{ fontFamily: '"Space Grotesk", sans-serif' }}
+        >
+          {isHome ? "Dashboard" : isDiagnose ? "Diagnostics" : isFindMechanic ? "Find Mechanic" : ""}
+        </span>
       </div>
 
       <nav className="flex items-center gap-0.5 sm:gap-1">
+        {/* System Health widget */}
+        <div className="hidden md:flex items-center gap-2 mr-2 pr-3 border-r border-surface1">
+          <div className="text-right">
+            <p className="text-[9px] text-primary font-label uppercase tracking-widest leading-none">System Health</p>
+            <p className="text-sm font-bold leading-tight" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>
+              {healthLoading ? "—" : isConnected ? "Online" : "Offline"}
+            </p>
+          </div>
+          <div className="w-8 h-8 rounded-full border border-primary/20 flex items-center justify-center">
+            {healthLoading ? (
+              <Loader2 size={12} className="animate-spin text-primary" />
+            ) : isConnected ? (
+              <Wifi size={12} className="text-green animate-pulse" />
+            ) : (
+              <WifiOff size={12} className="text-red" />
+            )}
+          </div>
+        </div>
+
         {subscription && (
           <Link
             to="/pricing"
@@ -89,24 +121,6 @@ export function Header() {
             <span>{subscription.limit}</span>
           </Link>
         )}
-        <Link to="/maintenance">
-          <Button variant="ghost" size="sm" className="text-subtext hover:text-text">
-            <Calendar size={14} />
-            <span className="hidden sm:inline">Maintenance</span>
-          </Button>
-        </Link>
-        <Link to="/mechanic/dashboard">
-          <Button variant="ghost" size="sm" className="text-subtext hover:text-text">
-            <Wrench size={14} />
-            <span className="hidden sm:inline">Mechanic</span>
-          </Button>
-        </Link>
-        <Link to="/pricing">
-          <Button variant="ghost" size="sm" className="text-subtext hover:text-text">
-            <CreditCard size={14} />
-            <span className="hidden sm:inline">Plans</span>
-          </Button>
-        </Link>
         {(isDiagnose || isFindMechanic) && (
           <Link to="/">
             <Button variant="ghost" size="sm">
