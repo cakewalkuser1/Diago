@@ -6,7 +6,7 @@ matplotlib
 # sounddevice  — requires audio hardware, not needed for API deployment
 soundfile
 pydub
-audioop-lts; python_version >= "3.13"
+# audioop-lts removed — audioop is not used anywhere in this codebase
 
 # Configuration
 pydantic-settings
