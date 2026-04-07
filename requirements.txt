@@ -1,12 +1,12 @@
 # Core dependencies
-PyQt6
+# PyQt6  — desktop GUI only, not needed for API/web deployment
 numpy
 scipy
 matplotlib
-sounddevice
+# sounddevice  — requires audio hardware, not needed for API deployment
 soundfile
 pydub
-audioop-lts
+audioop-lts; python_version >= "3.13"
 
 # Configuration
 pydantic-settings

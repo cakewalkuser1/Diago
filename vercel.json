@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "pip install -r requirements.txt",
+  "functions": {
+    "api/vercel_app.py": {
+      "runtime": "python3.13"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/vercel_app.py" },
+    { "source": "/health", "destination": "/api/vercel_app.py" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
